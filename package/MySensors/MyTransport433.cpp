@@ -87,22 +87,24 @@ bool MyTransport433::send(uint8_t to, MyMessage &message) {
 }
 
 bool MyTransport433::available() {
-	if(cc1101433.packet_available())
+	if(cc1101433.packet_available() == TRUE)
 	{
 		return true;
 	}
 	return false;
 }
 
-uint8_t MyTransport433::receive(void* data) {
+uint8_t MyTransport433::receive(void* data,uint8_t *from,uint8_t *to) {
 	uint8_t Rx_fifo[FIFOBUFFER];
-  uint8_t rx_addr, pktlen, sender, lqi;
+  uint8_t pktlen, lqi,rx_addr,sender;
 	int8_t rssi_dbm;
 	uint8_t datalen = 0;
 	if(cc1101433.packet_available() == TRUE)
 	{
 		if(cc1101433.get_payload(Rx_fifo, pktlen, rx_addr, sender, rssi_dbm, lqi) == TRUE) //stores the payload data to Rx_fifo
 		 {
+			   *to = rx_addr;
+				 *from = sender;
 				 datalen = pktlen - 3;
 				 memcpy(data,(uint8_t *) Rx_fifo + 3,datalen);
 		 }

@@ -153,7 +153,7 @@ bool RF433ServerClass::ProcessSend(MyMessage *pMsg)
 	//LOGD(LOGTAG_MSG, "flag=%d,d=%d,cmd=%d,type=%d,sensor=%d",flag,pMsg->getDestination(),pMsg->getCommand(),pMsg->getType(),pMsg->getSensor());
 	if( AddMessage((UC *)&(pMsg->msg), MAX_MESSAGE_LENGTH, GetMQLength(), flag) > 0 ) {
 		_times++;
-		//LOGD(LOGTAG_MSG, "Add sendMQ len:%d", GetMQLength());
+		LOGD(LOGTAG_MSG, "Add sendMQ len:%d", GetMQLength());
 		return true;
 	}
 
@@ -166,11 +166,28 @@ bool RF433ServerClass::PeekMessage()
 {
 	if( !isValid() ) return false;
 
-	UC to = 0;
-  UC pipe;
-	UC len;
+	uint8_t from,to = 0;
+	uint8_t len;
 	MyMessage lv_msg;
-	UC *lv_pData = (UC *)&(lv_msg.msg);
+	uint8_t *lv_pData = (uint8_t *)&(lv_msg.msg);
+	while(available()){
+		  len = receive(lv_pData,&from,&to);
+			// rough check
+			if( len < HEADER_SIZE )
+			{
+				LOGW(LOGTAG_MSG, "got corrupt dynamic payload!");
+				return false;
+			} else if( len > MAX_MESSAGE_LENGTH )
+			{
+				LOGW(LOGTAG_MSG, "message length exceeded: %d", len);
+				return false;
+			}
+			_received++;
+			LOGD(LOGTAG_MSG, "Received msg-len=%d, from:%d to:%d sender:%d dest:%d cmd:%d type:%d sensor:%d payl-len:%d",
+			len, from, to, lv_msg.getSender(), lv_msg.getDestination(), lv_msg.getCommand(),
+			lv_msg.getType(), lv_msg.getSensor(), lv_msg.getLength());
+			if( Append(lv_pData, len) <= 0 ) return false;
+	}
 	return true;
 }
 

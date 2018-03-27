@@ -56,8 +56,8 @@
 #define VERSION_CONFIG_DATA       27
 
 // Xlight Application Identification
-#define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
-#define XLA_PRODUCT_NAME          "XController"             // Default value. Read from EEPROM
+#define XLA_ORGANIZATION          "xlight.ca.pro"               // Default value. Read from EEPROM
+#define XLA_PRODUCT_NAME          "XController-Pro"             // Default value. Read from EEPROM
 #define XLA_AUTHORIZATION         "use-token-auth"
 #define XLA_TOKEN                 "your-access-token"       // Can update online
 

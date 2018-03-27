@@ -84,16 +84,74 @@ void setup()
 	WiFi.on();
 	WiFi.listen(false);
 	// System Initialization
-  //theSys.Init();
+  theSys.Init();
 
 	// Load Configuration
-  //theConfig.LoadConfig();
+  theConfig.LoadConfig();
+	theSys.InitPins();
+	theSys.InitRadio();
+
+	// Open Wi-Fi
+	if( theConfig.GetDisableWiFi() ) {
+		WiFi.disconnect();
+		WiFi.off();
+	} else {
+		// Initiaze Cloud Variables & Functions
+		///It is fine to call this function when the cloud is disconnected - Objects will be registered next time the cloud is connected
+		theSys.InitCloudObj();
+	}
+
 	// Initialize Serial Console
 	theConsole.Init();
   // Start system timer: callback every n * 0.5ms using hmSec timescale
   //Use TIMER6 to retain PWM capabilities on all pins
   sysTimer.begin(SysteTimerCB, RTE_DELAY_SYSTIMER, uSec, TIMER6);
 
+	if( !theConfig.GetDisableWiFi() ) {
+		while(1) {
+			if( !WiFi.hasCredentials() || !theConfig.GetWiFiStatus() ) {
+				if( !theSys.connectWiFi() ) {
+					// get credential from BLE or Serial
+					SERIAL_LN("will enter listening mode");
+					WiFi.listen();
+					break;
+				}
+			}
+
+			// Connect to Wi-Fi
+			SERIAL_LN("will connect WiFi");
+			if( theSys.connectWiFi() ) {
+				if( theConfig.GetUseCloud() == CLOUD_DISABLE ) {
+					Particle.disconnect();
+				} else {
+					// Connect to the Cloud
+					if( !theSys.connectCloud() ) {
+						if( theConfig.GetUseCloud() == CLOUD_MUST_CONNECT ) {
+							// Must connect to the Cloud
+							continue;
+						}
+					}
+				}
+			} else {
+				if( theConfig.GetUseCloud() == CLOUD_MUST_CONNECT ) {
+					// Must have network
+					continue;
+				}
+			}
+			break;
+		}
+	  // Initialization network Interfaces
+	  theSys.InitNetwork();
+
+	  // Wait the system started
+	  if( Particle.connected() == true ) {
+		  while( millis() < 2000 ) {
+			  Particle.process();
+		  }
+	  }
+  }
+	// System Starts
+  theSys.Start();
 	// Setp WD and reset the application if no reponds
 	ApplicationWatchdog wd(RTE_WATCHDOG_TIMEOUT, System.reset, 256);
 }
@@ -105,8 +163,14 @@ void loop()
 	static UL lastTick = millis();
   static UC tick = 0;
 
-	IF_MAINLOOP_TIMER( Particle.process(), "ProcessCloud" );
+	// Process commands
+  IF_MAINLOOP_TIMER( theSys.ProcessCommands(), "ProcessCommands" );
 
+	//TODO Process Panel input
+  //IF_MAINLOOP_TIMER( theSys.ProcessPanel(), "ProcessPanel" );
+  // Self-test & alarm trigger, also insert delay between each loop
+  IF_MAINLOOP_TIMER( theSys.SelfCheck(RTE_DELAY_SELFCHECK), "SelfCheck" );
+	IF_MAINLOOP_TIMER( Particle.process(), "ProcessCloud" );
 }
 
 #endif

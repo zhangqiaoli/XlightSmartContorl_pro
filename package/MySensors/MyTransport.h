@@ -58,7 +58,7 @@ public:
 	// receive(data)
 	// returns length of received packet
 	// populates "data" parameter with received data
-	virtual uint8_t receive(void* data) = 0;
+	virtual uint8_t receive(void* data,uint8_t *from,uint8_t *to) = 0;
 	// powers down the radio
 	virtual void powerDown() = 0;
 };

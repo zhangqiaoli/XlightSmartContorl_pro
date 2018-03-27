@@ -38,7 +38,7 @@ public:
 	bool send(uint8_t to, const void* data, uint8_t len);
 	bool send(uint8_t to, MyMessage &message);
 	bool available();
-	uint8_t receive(void* data);
+	uint8_t receive(void* data,uint8_t *from,uint8_t *to);
 	void powerDown();
 
 	uint8_t getChannel(bool read = true);

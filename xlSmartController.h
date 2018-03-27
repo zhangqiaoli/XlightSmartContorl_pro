@@ -15,20 +15,32 @@ private:
   BOOL m_isRF;
 public:
   SmartControllerClass();
-  /*void Init();
+  void Init();
   void InitNetwork();
   void InitPins();
-  //void InitCloudObj();
+  void InitRadio();
+  void InitCloudObj();
+
+  BOOL Start();
+  void Restart();
+  BOOL SelfCheck(US ms);
+  void ProcessCommands();
+  void ProcessCloudCommands();
+  void ProcessLocalCommands();
+  int ExeJSONCommand(String jsonCmd);
+  int ExeJSONConfig(String jsonData);
 
   UC GetStatus();
-  BOOL SetStatus(UC st);*/
+  BOOL SetStatus(UC st);
 
   BOOL IsLANGood();
   BOOL IsWANGood();
   BOOL IsRFGood();
 
-  /*BOOL CheckWiFi();
-  BOOL CheckNetwork();*/
+  BOOL CheckWiFi();
+  BOOL CheckNetwork();
+  BOOL connectWiFi();
+  BOOL connectCloud();
 
 
   int CldSetTimeZone(String tzStr);

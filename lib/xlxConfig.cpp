@@ -80,6 +80,8 @@ void ConfigClass::InitConfig()
   m_config.timeZone.id = 90;              // Toronto
   m_config.timeZone.offset = -300;        // -5 hours
   m_config.timeZone.dst = 1;              // 1 or 0
+  strcpy(m_config.Organization, XLA_ORGANIZATION);
+  strcpy(m_config.ProductName, XLA_PRODUCT_NAME);
 }
 
 BOOL ConfigClass::InitDevStatus(UC nodeID)
@@ -114,6 +116,150 @@ BOOL ConfigClass::SetDisableLamp(BOOL _st)
 		m_config.disableLamp = _st;
 		m_isChanged = true;
 		SERIAL_LN("Lamp chip %s", _st ? "disabled" : "enabled");
+		return true;
+	}
+	return false;
+}
+
+UC ConfigClass::GetUseCloud()
+{
+	return m_config.useCloud;
+}
+
+BOOL ConfigClass::SetUseCloud(UC opt)
+{
+	if( opt != m_config.useCloud && opt <= CLOUD_MUST_CONNECT ) {
+		m_config.useCloud = opt;
+		m_isChanged = true;
+		return true;
+	}
+	return false;
+}
+
+UC ConfigClass::GetBrightIndicator()
+{
+  return m_config.indBrightness;
+}
+
+BOOL ConfigClass::SetBrightIndicator(UC level)
+{
+  if( level != m_config.indBrightness )
+  {
+    m_config.indBrightness = level;
+    m_isChanged = true;
+    return true;
+  }
+
+  return false;
+}
+
+UC ConfigClass::GetRelayKeyObj()
+{
+	return m_config.hwsObj;
+}
+
+BOOL ConfigClass::SetRelayKeyObj(UC _value)
+{
+	if( _value != m_config.hwsObj ) {
+    m_config.hwsObj = _value;
+    m_isChanged = true;
+    return true;
+  }
+  return false;
+}
+
+UC ConfigClass::GetRelayKeys()
+{
+	return(m_config.relay_key_value);
+}
+
+BOOL ConfigClass::SetRelayKeys(const UC _keys)
+{
+	if( m_config.relay_key_value != _keys ) {
+		m_config.relay_key_value = _keys;
+		m_isChanged = true;
+		return true;
+	}
+	return false;
+}
+
+UC ConfigClass::GetRelayKey(const UC _code)
+{
+	return(BITTEST(m_config.relay_key_value, _code));
+}
+
+BOOL ConfigClass::SetRelayKey(const UC _code, const UC _on)
+{
+	UC newValue;
+	if( _on ) newValue = BITSET(m_config.relay_key_value, _code);
+	else newValue = BITUNSET(m_config.relay_key_value, _code);
+
+	if( newValue != m_config.relay_key_value ) {
+		m_config.relay_key_value = newValue;
+		m_isChanged = true;
+		return true;
+	}
+	return false;
+}
+
+BOOL ConfigClass::GetWiFiStatus()
+{
+  return m_config.stWiFi;
+}
+
+BOOL ConfigClass::SetWiFiStatus(BOOL _st)
+{
+  if( _st != m_config.stWiFi ) {
+    m_config.stWiFi = _st;
+    m_isChanged = true;
+		LOGN(LOGTAG_STATUS, "Wi-Fi status set to %d", _st);
+    return true;
+  }
+  return false;
+}
+
+BOOL ConfigClass::IsCloudSerialEnabled()
+{
+	return m_config.enableCloudSerialCmd;
+}
+
+void ConfigClass::SetCloudSerialEnabled(BOOL sw)
+{
+	if( sw != m_config.enableCloudSerialCmd ) {
+		m_config.enableCloudSerialCmd = sw;
+		m_isChanged = true;
+	}
+}
+
+UC ConfigClass::GetRFChannel()
+{
+	return m_config.rfChannel;
+}
+
+BOOL ConfigClass::SetRFChannel(UC channel)
+{
+	if( channel > 127 ) channel = CC1101_433_CHANNEL;
+	if( channel != m_config.rfChannel ) {
+		m_config.rfChannel = channel;
+		theRadio.setChannel(channel);
+		m_isChanged = true;
+		return true;
+	}
+	return false;
+}
+
+UC ConfigClass::GetRFAddr()
+{
+	return m_config.rfAddr;
+}
+
+BOOL ConfigClass::SetRFAddr(UC addr)
+{
+	if( addr > 127 ) addr = CC1101_433_ADDRESS;
+	if( addr != m_config.rfAddr ) {
+		m_config.rfAddr = addr;
+		theRadio.setAddress(addr);
+		m_isChanged = true;
 		return true;
 	}
 	return false;
@@ -219,22 +365,145 @@ UC ConfigClass::GetVersion()
 
 US ConfigClass::GetTimeZoneID()
 {
-  return m_config.timeZone.id;
+	return m_config.timeZone.id;
 }
 
 BOOL ConfigClass::SetTimeZoneID(US tz)
 {
-  if( tz == 0 || tz > 500 )
-    return false;
+	if( tz == 0 || tz > 500 )
+		return false;
 
-  if( tz != m_config.timeZone.id )
-  {
-    m_config.timeZone.id = tz;
-    m_isChanged = true;
-    //theSys.m_tzString = GetTimeZoneJSON();
-  }
-  return true;
+	if( tz != m_config.timeZone.id )
+	{
+		m_config.timeZone.id = tz;
+		m_isChanged = true;
+		theSys.m_tzString = GetTimeZoneJSON();
+	}
+	return true;
 }
+
+void ConfigClass::UpdateTimeZone()
+{
+	// Change System Timezone
+	Time.zone((float)GetTimeZoneOffset() / 60 + GetDaylightSaving());
+}
+
+UC ConfigClass::GetDaylightSaving()
+{
+	return m_config.timeZone.dst;
+}
+
+BOOL ConfigClass::SetDaylightSaving(UC flag)
+{
+	if( flag > 1 )
+		return false;
+
+	if( flag != m_config.timeZone.dst )
+	{
+		m_config.timeZone.dst = flag;
+		m_isChanged = true;
+		theSys.m_tzString = GetTimeZoneJSON();
+		UpdateTimeZone();
+	}
+	return true;
+}
+
+SHORT ConfigClass::GetTimeZoneOffset()
+{
+	return m_config.timeZone.offset;
+}
+
+SHORT ConfigClass::GetTimeZoneDSTOffset()
+{
+	return (m_config.timeZone.offset + m_config.timeZone.dst * 60);
+}
+
+BOOL ConfigClass::SetTimeZoneOffset(SHORT offset)
+{
+	if( offset >= -780 && offset <= 780)
+	{
+		if( offset != m_config.timeZone.offset )
+		{
+			m_config.timeZone.offset = offset;
+			m_isChanged = true;
+			theSys.m_tzString = GetTimeZoneJSON();
+			// Change System Timezone
+			UpdateTimeZone();
+		}
+		return true;
+	}
+	return false;
+}
+
+String ConfigClass::GetTimeZoneJSON()
+{
+	String jsonStr = String::format("{\"id\":%d,\"offset\":%d,\"dst\":%d}",
+									GetTimeZoneID(), GetTimeZoneOffset(), GetDaylightSaving());
+	return jsonStr;
+}
+
+BOOL ConfigClass::IsDailyTimeSyncEnabled()
+{
+	return m_config.enableDailyTimeSync;
+}
+
+void ConfigClass::SetDailyTimeSyncEnabled(BOOL sw)
+{
+	if( sw != m_config.enableDailyTimeSync ) {
+		m_config.enableDailyTimeSync = sw;
+		m_isChanged = true;
+	}
+}
+
+void ConfigClass::DoTimeSync()
+{
+	// Request time synchronization from the Particle Cloud
+	Particle.syncTime();
+	m_lastTimeSync = millis();
+	LOGI(LOGTAG_EVENT, "Time synchronized");
+}
+
+BOOL ConfigClass::CloudTimeSync(BOOL _force)
+{
+	if( Particle.connected() ) {
+		if( _force ) {
+			DoTimeSync();
+			return true;
+		} else if( theConfig.IsDailyTimeSyncEnabled() ) {
+			if( (millis() - m_lastTimeSync) / 1000 > SECS_PER_DAY ) {
+				DoTimeSync();
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
+String ConfigClass::GetOrganization()
+{
+	String strName = m_config.Organization;
+	return strName;
+}
+
+void ConfigClass::SetOrganization(const char *strName)
+{
+	strncpy(m_config.Organization, strName, sizeof(m_config.Organization) - 1);
+	m_isChanged = true;
+}
+
+String ConfigClass::GetProductName()
+{
+	String strName = m_config.ProductName;
+	return strName;
+}
+
+void ConfigClass::SetProductName(const char *strName)
+{
+	strncpy(m_config.ProductName, strName, sizeof(m_config.ProductName) - 1);
+	m_isChanged = true;
+}
+
 
 
 BOOL ConfigClass::LoadBackupConfig()

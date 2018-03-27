@@ -71,7 +71,8 @@ typedef struct
   UC mainDevID;                             // NodeID for main device
   UC subDevID;                              // SubID for main device
   UC typeMainDevice           :8;           // Type of the main lamp
-  UC rfChannel;                             // RF Channel: [0..127]
+  UC rfChannel;                             // RF Channel: [0..255]
+  UC rfAddr;                                // RF Addr: [0..255]
   UC rfPowerLevel             :2;           // RF Power Level 0..3
   UC rfDataRate               :2;           // RF Data Rate [0..2], 0 for 1Mbps, or 1 for 2Mbps, 2 for 250kbs
   BOOL enableCloudSerialCmd   :1;           // Whether enable cloud serial command
@@ -345,6 +346,32 @@ public:
   BOOL GetDisableWiFi();
   BOOL SetDisableWiFi(BOOL _st);
 
+  UC GetUseCloud();
+  BOOL SetUseCloud(UC opt);
+
+  UC GetBrightIndicator();
+  BOOL SetBrightIndicator(UC level);
+
+  UC GetRelayKeyObj();
+  BOOL SetRelayKeyObj(UC _value);
+
+  UC GetRelayKeys();
+  BOOL SetRelayKeys(const UC _keys);
+  UC GetRelayKey(const UC _code);
+  BOOL SetRelayKey(const UC _code, const UC _on);
+
+  UC GetRFChannel();
+  BOOL SetRFChannel(UC channel);
+
+  UC GetRFAddr();
+  BOOL SetRFAddr(UC addr);
+
+  BOOL GetWiFiStatus();
+  BOOL SetWiFiStatus(BOOL _st);
+
+  BOOL IsCloudSerialEnabled();
+  void SetCloudSerialEnabled(BOOL sw = true);
+
   BOOL LoadConfig();
   BOOL SaveConfig();
   BOOL IsConfigLoaded();
@@ -358,6 +385,23 @@ public:
   US GetTimeZoneID();
   BOOL SetTimeZoneID(US tz);
 
+  UC GetDaylightSaving();
+  BOOL SetDaylightSaving(UC flag);
+
+  SHORT GetTimeZoneOffset();
+  SHORT GetTimeZoneDSTOffset();
+  BOOL SetTimeZoneOffset(SHORT offset);
+  String GetTimeZoneJSON();
+
+  BOOL IsDailyTimeSyncEnabled();
+  void SetDailyTimeSyncEnabled(BOOL sw = true);
+  BOOL CloudTimeSync(BOOL _force = true);
+
+  String GetOrganization();
+  void SetOrganization(const char *strName);
+
+  String GetProductName();
+  void SetProductName(const char *strName);
 };
 
 //------------------------------------------------------------------
