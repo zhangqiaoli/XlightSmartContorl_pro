@@ -154,14 +154,14 @@ bool xlPanelClass::ProcessEncoder()
         CheckHeldTimeout(m_pEncoder->getHeldDuration());
         break;
       case BUTTON_CLICKED:
-        //LOGD(LOGTAG_ACTION, "Button Clicked,keyobj=%d",theConfig.GetRelayKeyObj());
-        //if( theConfig.GetRelayKeyObj() == BTN_OBJ_SCAN_KEY_MAP ) {
-          //theSys.ToggleAllHardSwitchs();
-        //} else if( theConfig.GetRelayKeyObj() == BTN_OBJ_LOOP_KEY_MAP ) {
-          //theSys.ToggleLoopHardSwitch();
-        //} else {
-          //theSys.ToggleLampOnOff(CURRENT_DEVICE, CURRENT_SUBDEVICE);
-        //}
+        LOGD(LOGTAG_ACTION, "Button Clicked,keyobj=%d",theConfig.GetRelayKeyObj());
+        if( theConfig.GetRelayKeyObj() == BTN_OBJ_SCAN_KEY_MAP ) {
+          theSys.ToggleAllHardSwitchs();
+        } else if( theConfig.GetRelayKeyObj() == BTN_OBJ_LOOP_KEY_MAP ) {
+          theSys.ToggleLoopHardSwitch();
+        } else {
+          theSys.ToggleLampOnOff(CURRENT_DEVICE, CURRENT_SUBDEVICE);
+        }
         // Clear CCT flag, but don't need to change HC595, cuz the toggle function will do it
         //SetCCTFlag(false);
         m_bCCTFlag = false;
@@ -191,7 +191,7 @@ void xlPanelClass::SetDimmerValue(int16_t _value)
 		m_nLastOpPast = millis();
     SetHC595();
     // Send Light Percentage message
-    //theSys.ChangeLampBrightness(CURRENT_DEVICE, _value, CURRENT_SUBDEVICE);
+    theSys.ChangeLampBrightness(CURRENT_DEVICE, _value, CURRENT_SUBDEVICE);
 		LOGD(LOGTAG_EVENT, "Dimmer-BR changed to %d", _value);
 	}
 }
@@ -230,7 +230,7 @@ void xlPanelClass::SetCCTValue(int16_t _value)
     SetHC595();
     // Send CCT message
     US cctValue = map(_value, 0, 100, CT_MIN_VALUE, CT_MAX_VALUE);
-    //theSys.ChangeLampCCT(CURRENT_DEVICE, cctValue);
+    theSys.ChangeLampCCT(CURRENT_DEVICE, cctValue);
 		LOGD(LOGTAG_EVENT, "Dimmer-CCT changed to %d", cctValue);
 	}
 }
@@ -303,7 +303,7 @@ void xlPanelClass::SetRingOnOff(bool _switch)
   m_stSwitch = _switch;
   if(theConfig.GetDisableLamp())
   {
-    //pos = theConfig.GetKeyOnNum()*12/MAX_KEY_MAP_ITEMS;
+    pos = theConfig.GetKeyOnNum()*12/MAX_KEY_MAP_ITEMS;
   }
   SetRingPos(pos);
 }
@@ -381,6 +381,6 @@ void xlPanelClass::CheckHeldTimeout(const uint8_t nHeldDur)
     System.enterSafeMode();
   } else if( nHeldDur >= RTE_TM_HELD_TO_RESET ) {
     LOGW(LOGTAG_ACTION, "System is about to reset");
-    //theSys.Restart();
+    theSys.Restart();
   }
 }

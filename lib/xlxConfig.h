@@ -19,6 +19,17 @@
 
 #define PACK //MSVS intellisense doesn't work when structs are packed
 
+#define CURRENT_DEVICE              (theConfig.GetMainDeviceID())
+#define CURRENT_SUBDEVICE           (theConfig.GetSubDeviceID())
+#define IS_CURRENT_DEVICE(nid)      ((nid) == CURRENT_DEVICE || CURRENT_DEVICE == NODEID_DUMMY)
+
+// Maximum items in AST scenario table
+#define MAX_ASR_SNT_ITEMS           16
+
+// Maximum items in Hardware Key Map
+#define MAX_KEY_MAP_ITEMS           4
+#define MAX_NUM_BUTTONS             4
+#define MAX_BTN_OP_TYPE             2
 
 //------------------------------------------------------------------
 // Xlight Configuration Data Structures
@@ -95,8 +106,8 @@ typedef struct
   BOOL disableLamp            :1;           // if disable lamp
   UC reserved                 :7;           // reserved
   UC Reserved_UC1[1];
-  //HardKeyMap_t keyMap[MAX_KEY_MAP_ITEMS];
-  //Button_Action_t btnAction[MAX_NUM_BUTTONS][MAX_BTN_OP_TYPE];  // 0: press, 1: long press
+  HardKeyMap_t keyMap[MAX_KEY_MAP_ITEMS];
+  Button_Action_t btnAction[MAX_NUM_BUTTONS][MAX_BTN_OP_TYPE];  // 0: press, 1: long press
 } Config_t;
 
 //------------------------------------------------------------------
@@ -307,8 +318,15 @@ public:
   };
   int getMemSize();
   int getFlashSize();
+  bool loadList();
+  bool saveList();
+  void showList(BOOL toCloud = false, UC nid = 0);
+  void publishNode(NodeIdRow_t _node);
+  UC requestNodeID(UC preferID, char type, uint64_t identity);
+  BOOL clearNodeId(UC nodeID);
 
 protected:
+  UC getAvailableNodeId(UC preferID, UC defaultID, UC minID, UC maxID, uint64_t identity);
 };
 
 //------------------------------------------------------------------
@@ -318,7 +336,11 @@ class ConfigClass
 {
 private:
   BOOL m_isLoaded;
-  BOOL m_isChanged;
+  BOOL m_isChanged;         // Config Change Flag
+  BOOL m_isDSTChanged;      // Device Status Table Change Flag
+  BOOL m_isSCTChanged;      // Schedule Table Change Flag
+  BOOL m_isRTChanged;		    // Rules Table Change Flag
+  BOOL m_isSNTChanged;	 	  // Scenerio Table Change Flag
   UL m_lastTimeSync;
 
   Config_t m_config;
@@ -340,38 +362,6 @@ public:
   BOOL MemWriteScenarioRow(ScenarioRow_t row, uint32_t address);
   BOOL MemReadScenarioRow(ScenarioRow_t &row, uint32_t address);
 
-  BOOL GetDisableLamp();
-  BOOL SetDisableLamp(BOOL _st);
-
-  BOOL GetDisableWiFi();
-  BOOL SetDisableWiFi(BOOL _st);
-
-  UC GetUseCloud();
-  BOOL SetUseCloud(UC opt);
-
-  UC GetBrightIndicator();
-  BOOL SetBrightIndicator(UC level);
-
-  UC GetRelayKeyObj();
-  BOOL SetRelayKeyObj(UC _value);
-
-  UC GetRelayKeys();
-  BOOL SetRelayKeys(const UC _keys);
-  UC GetRelayKey(const UC _code);
-  BOOL SetRelayKey(const UC _code, const UC _on);
-
-  UC GetRFChannel();
-  BOOL SetRFChannel(UC channel);
-
-  UC GetRFAddr();
-  BOOL SetRFAddr(UC addr);
-
-  BOOL GetWiFiStatus();
-  BOOL SetWiFiStatus(BOOL _st);
-
-  BOOL IsCloudSerialEnabled();
-  void SetCloudSerialEnabled(BOOL sw = true);
-
   BOOL LoadConfig();
   BOOL SaveConfig();
   BOOL IsConfigLoaded();
@@ -379,6 +369,37 @@ public:
   BOOL IsValidConfig();
   BOOL LoadBackupConfig();
   BOOL SaveBackupConfig();
+
+  BOOL LoadDeviceStatus();
+  BOOL SaveDeviceStatus();
+
+  BOOL SaveScheduleTable();
+  BOOL SaveScenarioTable();
+
+  BOOL LoadRuleTable();
+  BOOL SaveRuleTable();
+
+  BOOL LoadNodeIDList();
+  BOOL SaveNodeIDList();
+  BOOL LoadBackupNodeList();
+
+  BOOL IsConfigChanged();
+  void SetConfigChanged(BOOL flag);
+
+  BOOL IsDSTChanged();
+  void SetDSTChanged(BOOL flag);
+
+  BOOL IsSCTChanged();
+  void SetSCTChanged(BOOL flag);
+
+  BOOL IsRTChanged();
+  void SetRTChanged(BOOL flag);
+
+  BOOL IsSNTChanged();
+  void SetSNTChanged(BOOL flag);
+
+  BOOL IsNIDChanged();
+  void SetNIDChanged(BOOL flag);
 
   UC GetVersion();
 
@@ -393,15 +414,101 @@ public:
   BOOL SetTimeZoneOffset(SHORT offset);
   String GetTimeZoneJSON();
 
-  BOOL IsDailyTimeSyncEnabled();
-  void SetDailyTimeSyncEnabled(BOOL sw = true);
-  BOOL CloudTimeSync(BOOL _force = true);
-
   String GetOrganization();
   void SetOrganization(const char *strName);
 
   String GetProductName();
   void SetProductName(const char *strName);
+
+
+  BOOL IsCloudSerialEnabled();
+  void SetCloudSerialEnabled(BOOL sw = true);
+
+  BOOL IsSpeakerEnabled();
+  void SetSpeakerEnabled(BOOL sw = true);
+
+  BOOL IsFixedNID();
+  void SetFixedNID(BOOL sw = true);
+
+  BOOL IsDailyTimeSyncEnabled();
+  void SetDailyTimeSyncEnabled(BOOL sw = true);
+  BOOL CloudTimeSync(BOOL _force = true);
+
+
+  UC GetBrightIndicator();
+  BOOL SetBrightIndicator(UC level);
+
+  UC GetMainDeviceID();
+  BOOL SetMainDeviceID(UC devID);
+  UC GetSubDeviceID();
+  BOOL SetSubDeviceID(UC devID);
+
+  UC GetMainDeviceType();
+  BOOL SetMainDeviceType(UC type);
+
+  UC GetRemoteNodeDevice(UC remoteID);
+  BOOL SetRemoteNodeDevice(UC remoteID, US devID);
+
+  UC GetNumDevices();
+  BOOL SetNumDevices(UC num);
+
+  UC GetNumNodes();
+  BOOL SetNumNodes(UC num);
+
+  US GetMaxBaseNetworkDur();
+  BOOL SetMaxBaseNetworkDur(US dur);
+
+  BOOL GetDisableWiFi();
+  BOOL SetDisableWiFi(BOOL _st);
+  BOOL GetDisableLamp();
+  BOOL SetDisableLamp(BOOL _st);
+
+  UC GetUseCloud();
+  BOOL SetUseCloud(UC opt);
+
+  BOOL GetWiFiStatus();
+  BOOL SetWiFiStatus(BOOL _st);
+
+  BOOL GetHardwareSwitch();
+  BOOL SetHardwareSwitch(BOOL _sw);
+
+  UC GetRelayKeyObj();
+  BOOL SetRelayKeyObj(UC _value);
+
+  UC GetTimeLoopKC();
+  BOOL SetTimeLoopKC(UC _value);
+
+  UC GetRFChannel();
+  BOOL SetRFChannel(UC channel);
+
+  UC GetRFAddr();
+  BOOL SetRFAddr(UC addr);
+
+  UC GetBcMsgRptTimes();
+  BOOL SetBcMsgRptTimes(UC _times);
+
+  UC GetNdMsgRptTimes();
+  BOOL SetNdMsgRptTimes(UC _times);
+
+  UC GetRelayKeys();
+  BOOL SetRelayKeys(const UC _keys);
+  UC GetRelayKey(const UC _code);
+  BOOL SetRelayKey(const UC _code, const UC _on);
+
+  UC GetKeyMapItem(const UC _key, UC *_subID = NULL);
+  BOOL SetKeyMapItem(const UC _key, const UC _nid, const UC _subID = 0);
+  UC SearchKeyMapItem(const UC _nid, const UC _subID = 0);
+  BOOL IsKeyMapItemAvalaible(const UC _code);
+  bool IsKeyMatchedItem(const UC _code, const UC _nid, const UC _subID = 0);
+  void showKeyMap();
+  UC GetKeyOnNum();
+
+  BOOL SetExtBtnAction(const UC _btn, const UC _opt, const UC _act, const UC _keymap);
+  BOOL ExecuteBtnAction(const UC _btn, const UC _opt);
+  void showButtonActions();
+
+  NodeListClass lstNodes;
+  RemoteStatus_t m_stMainRemote;
 };
 
 //------------------------------------------------------------------

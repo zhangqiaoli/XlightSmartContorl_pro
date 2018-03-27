@@ -280,3 +280,21 @@ bool RF433ServerClass::ProcessSendMQ()
 
 	return true;
 }
+
+bool RF433ServerClass::SendNodeConfig(UC _node, UC _ncf, unsigned int _value)
+{
+	// Notify Remote Node
+	MyMessage lv_msg;
+	lv_msg.build(NODEID_GATEWAY, _node, _ncf, C_INTERNAL, I_CONFIG, true);
+	lv_msg.set(_value);
+	return ProcessSend(&lv_msg);
+}
+
+bool RF433ServerClass::SendNodeConfig(UC _node, UC _ncf, UC *_data, const UC _len)
+{
+	// Notify Remote Node
+	MyMessage lv_msg;
+	lv_msg.build(NODEID_GATEWAY, _node, _ncf, C_INTERNAL, I_CONFIG, true);
+	lv_msg.set((void*)_data, _len);
+	return ProcessSend(&lv_msg);
+}

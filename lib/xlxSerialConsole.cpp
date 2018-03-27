@@ -483,7 +483,7 @@ bool SerialConsoleClass::doShow(const char *cmd)
       SERIAL_LN("** Network Summary **");
       uint8_t mac[6];
       //WiFi.macAddress(mac);
-	    //theSys.GetMac(mac);
+	    theSys.GetMac(mac);
       SERIAL_LN("  MAC address: %s", PrintMacAddress(strDisplay, mac));
       if( !theConfig.GetDisableWiFi() ) {
         if( WiFi.ready() ) {
@@ -542,11 +542,11 @@ bool SerialConsoleClass::doAction(const char *cmd)
   if( sTopic ) {
     if (wal_strnicmp(sTopic, "on", 2) == 0) {
       SERIAL_LN("**Light is ON\n\r");
-      //theSys.DevSoftSwitch(DEVICE_SW_ON);
+      theSys.DevSoftSwitch(DEVICE_SW_ON);
       retVal = true;
     } else if (wal_strnicmp(sTopic, "off", 3) == 0) {
       SERIAL_LN("**Light is OFF\n\r");
-      //theSys.DevSoftSwitch(DEVICE_SW_OFF);
+      theSys.DevSoftSwitch(DEVICE_SW_OFF);
       retVal = true;
     } else if (wal_strnicmp(sTopic, "color", 5) == 0) {
       // ToDo:
@@ -596,7 +596,7 @@ bool SerialConsoleClass::doTest(const char *cmd)
         if( sParam1 ) {
           UC _sw = atoi(sParam1);
           SERIAL_LN("Turn keymap %d to %d\n\r", keyID, _sw);
-          //theSys.DevHardSwitch(keyID, _sw);
+          theSys.DevHardSwitch(keyID, _sw);
           retVal = true;
         }
       }
@@ -633,7 +633,7 @@ bool SerialConsoleClass::doSet(const char *cmd)
   char *sTopic = next();
   char *sParam1, *sParam2, *sParam3, *sParam4;
   if( sTopic ) {
-    if (wal_strnicmp(sTopic, "debug", 5) == 0) {
+    if (wal_strnicmp(sTopic, "tz", 2) == 0) {
       sParam1 = next();
       if( sParam1) {
         String strMsg = sParam1;
@@ -675,11 +675,11 @@ bool SerialConsoleClass::doSysSub(const char *cmd)
       if( lv_NodeID == 0) {
         SERIAL_LN("System is about to reset...");
         CloudOutput("System is about to reset");
-        //theSys.Restart();
+        theSys.Restart();
       } else {
         // Reboot node
         SERIAL_LN("Will reboot node %d", lv_NodeID);
-        //theSys.RebootNode(lv_NodeID);
+        theSys.RebootNode(lv_NodeID);
       }
     }
     else if (wal_strnicmp(sTopic, "safe", 4) == 0) {
@@ -708,7 +708,7 @@ bool SerialConsoleClass::doSysSub(const char *cmd)
       sParam1 = next();
       if(sParam1) {
         if( wal_stricmp(sParam1, "reset") == 0 ) {
-          //theSys.ResetSerialPort();
+          theSys.ResetSerialPort();
         } else {
           return false;
         }
@@ -721,9 +721,31 @@ bool SerialConsoleClass::doSysSub(const char *cmd)
       sParam1 = next();
       if(sParam1) {
         if( wal_stricmp(sParam1, "time") == 0 ) {
-          //theSys.CldSetCurrentTime();
+          theSys.CldSetCurrentTime();
         } else {
           // ToDo: other synchronization
+        }
+      } else {
+        return false;
+      }
+    }
+    else if (wal_strnicmp(sTopic, "clear", 5) == 0) {
+      sParam1 = next();
+      if(sParam1) {
+        if( wal_stricmp(sParam1, "nodeid") == 0 ) {
+          sParam1 = next();   // id
+          if(sParam1) {
+            if( !theConfig.lstNodes.clearNodeId((UC)atoi(sParam1)) ) {
+              SERIAL_LN("Failed to clear NodeID:%s\n\r", sParam1);
+              CloudOutput("Failed to clear NodeID:%s", sParam1);
+            }
+          }
+        } else if( wal_stricmp(sParam1, "credentials") == 0 ) {
+          WiFi.clearCredentials();
+          SERIAL_LN("WiFi credentials cleared\n\r");
+          CloudOutput("WiFi credentials cleared");
+        } else {
+          return false;
         }
       } else {
         return false;
@@ -825,7 +847,7 @@ bool SerialConsoleClass::SetWiFiCredential(const char *cmd)
   UpdateWiFiCredential();
   SERIAL("Wi-Fi credential saved");
   WiFi.listen(false);
-  //theSys.connectWiFi();
+  theSys.connectWiFi();
   CloudOutput("Wi-Fi credential saved, reconnect %s", WiFi.ready() ? "OK" : "Failed");
   return true;
 }
@@ -943,5 +965,5 @@ void SerialConsoleClass::CloudOutput(const char *msg, ...)
   buf[nSize] = '\0';
 
   // Set message
-  //theSys.m_lastMsg = buf;
+  theSys.m_lastMsg = buf;
 }

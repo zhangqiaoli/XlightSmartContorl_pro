@@ -83,12 +83,10 @@ void setup()
 {
 	WiFi.on();
 	WiFi.listen(false);
-	// System Initialization
+  // System Initialization
   theSys.Init();
 
-	// Load Configuration
-  theConfig.LoadConfig();
-	theSys.InitPins();
+	// Initialization Radio Interfaces
 	theSys.InitRadio();
 
 	// Open Wi-Fi
@@ -98,11 +96,11 @@ void setup()
 	} else {
 		// Initiaze Cloud Variables & Functions
 		///It is fine to call this function when the cloud is disconnected - Objects will be registered next time the cloud is connected
-		theSys.InitCloudObj();
+	  theSys.InitCloudObj();
 	}
 
 	// Initialize Serial Console
-	theConsole.Init();
+  theConsole.Init();
   // Start system timer: callback every n * 0.5ms using hmSec timescale
   //Use TIMER6 to retain PWM capabilities on all pins
   sysTimer.begin(SysteTimerCB, RTE_DELAY_SYSTIMER, uSec, TIMER6);
@@ -140,18 +138,22 @@ void setup()
 			}
 			break;
 		}
+
 	  // Initialization network Interfaces
 	  theSys.InitNetwork();
 
-	  // Wait the system started
-	  if( Particle.connected() == true ) {
-		  while( millis() < 2000 ) {
-			  Particle.process();
-		  }
-	  }
-  }
-	// System Starts
+		// Wait the system started
+		if( Particle.connected() == true ) {
+			while( millis() < 2000 ) {
+				Particle.process();
+			}
+		}
+	}
+
+
+  // System Starts
   theSys.Start();
+
 	// Setp WD and reset the application if no reponds
 	ApplicationWatchdog wd(RTE_WATCHDOG_TIMEOUT, System.reset, 256);
 }

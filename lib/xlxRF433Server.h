@@ -19,6 +19,8 @@ public:
   bool ProcessSend(String &strMsg, MyMessage &my_msg, const UC _replyTo = 0, const UC _sensor = 0);
   bool ProcessSend(String &strMsg, const UC _replyTo = 0, const UC _sensor = 0); //overloaded
   bool ProcessSend(MyMessage *pMsg = NULL);
+  bool SendNodeConfig(UC _node, UC _ncf, unsigned int _value);
+  bool SendNodeConfig(UC _node, UC _ncf, UC *_data, const UC _len);
 
   bool ProcessMQ();
   bool ProcessSendMQ();

@@ -44,6 +44,7 @@ CloudObjClass::CloudObjClass()
 // Initialize Cloud Variables & Functions
 void CloudObjClass::InitCloudObj()
 {
+  if( !theConfig.GetDisableWiFi() ) {
     Particle.variable(CLV_SysID, &m_SysID, STRING);
     Particle.variable(CLV_AppVersion, &m_nAppVersion, INT);
     Particle.variable(CLV_TimeZone, &m_tzString, STRING);
@@ -55,6 +56,7 @@ void CloudObjClass::InitCloudObj()
     Particle.function(CLF_JSONCommand, &CloudObjClass::CldJSONCommand, this);
     Particle.function(CLF_JSONConfig, &CloudObjClass::CldJSONConfig, this);
     Particle.function(CLF_SetCurTime, &CloudObjClass::CldSetCurrentTime, this);
+  }
 }
 
 String CloudObjClass::GetSysID()
@@ -99,6 +101,55 @@ BOOL CloudObjClass::PublishLog(const char *msg)
       rc = Particle.publish(CLT_NAME_LOGMSG, msg, CLT_TTL_LOGMSG, PRIVATE);
     }
   //}
+  return rc;
+}
+
+// Publish Device status
+BOOL CloudObjClass::PublishDeviceStatus(const char *msg)
+{
+  BOOL rc = true;
+  if( !theConfig.GetDisableWiFi() ) {
+    if( Particle.connected() ) {
+      rc = Particle.publish(CLT_NAME_DeviceStatus, msg, CLT_TTL_DeviceStatus, PRIVATE);
+    }
+  }
+
+  return rc;
+}
+
+void CloudObjClass::GotNodeConfigAck(const UC _nodeID, const UC *data)
+{
+	String strTemp;
+
+  strTemp = String::format("{'nd':%d,'ver':%d,'tp':%d,'senMap':%d,'funcMap':%d,'data':[%d,%d,%d,%d,%d,%d]}",
+			 _nodeID, data[0], data[1],	data[2] + data[3]*256, data[4] + data[5]*256,
+       data[6], data[7], data[8], data[9], data[10], data[11]);
+	PublishDeviceConfig(strTemp.c_str());
+}
+
+// Publish Device Config
+BOOL CloudObjClass::PublishDeviceConfig(const char *msg)
+{
+  BOOL rc = true;
+  if( !theConfig.GetDisableWiFi() ) {
+    if( Particle.connected() ) {
+      rc = Particle.publish(CLT_NAME_DeviceConfig, msg, CLT_TTL_DeviceConfig, PRIVATE);
+    }
+  }
+
+  return rc;
+}
+
+// Publish Alarm
+BOOL CloudObjClass::PublishAlarm(const char *msg)
+{
+  BOOL rc = true;
+  if( !theConfig.GetDisableWiFi() ) {
+    if( Particle.connected() ) {
+      rc = Particle.publish(CLT_NAME_Alarm, msg, CLT_TTL_Alarm, PRIVATE);
+    }
+  }
+
   return rc;
 }
 
