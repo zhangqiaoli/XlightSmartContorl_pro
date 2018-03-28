@@ -77,10 +77,205 @@ bool RF433ServerClass::ProcessMQ()
 	ProcessReceiveMQ();
 	return true;
 }
-
+// TODO
 bool RF433ServerClass::ProcessSend(const UC _node, const UC _msgID, String &strPayl, MyMessage &my_msg, const UC _replyTo, const UC _sensor)
 {
-	return true;
+	bool sentOK = false;
+	bool bMsgReady = false;
+	uint8_t bytValue;
+	int iValue;
+	float fValue;
+	char strBuffer[64];
+	uint8_t payload[MAX_PAYLOAD];
+	MyMessage lv_msg;
+	int nPos;
+
+	switch (_msgID)
+	{
+	case 0: // Free style
+		iValue = min(strPayl.length(), 63);
+		strncpy(strBuffer, strPayl.c_str(), iValue);
+		strBuffer[iValue] = 0;
+		// Serail format to MySensors message structure
+		bMsgReady = serialMsgParser.parse(lv_msg, strBuffer);
+		if (bMsgReady) {
+			if( _sensor > 0 ) lv_msg.setSensor(_sensor);
+			SERIAL("Now sending message...");
+		}
+		break;
+
+	case 1:   // Request new node ID
+		if( _node == GATEWAY_ADDRESS ) {
+			SERIAL_LN("Controller can not request node ID\n\r");
+		} else {
+			// Set specific NodeID to node
+			UC newID = 0;
+			if( strPayl.length() > 0 ) {
+				newID = (UC)strPayl.toInt();
+			}
+			if( newID > 0 ) {
+				lv_msg.build(_replyTo, _node, newID, C_INTERNAL, I_ID_RESPONSE, false, false);
+				//lv_msg.set(getMyNetworkID());
+				//theConfig.lstNodes.clearNodeId(_node);
+				SERIAL("Now sending new id:%d to node:%d...", newID, _node);
+				bMsgReady = true;
+			} else {
+				// Reboot node
+				ListNode<DevStatusRow_t> *DevStatusRowPtr = theSys.SearchDevStatus(_node);
+				if( DevStatusRowPtr ) {
+					lv_msg.build(_replyTo, _node, _sensor, C_INTERNAL, I_REBOOT, false);
+					lv_msg.set((unsigned int)DevStatusRowPtr->data.token);
+					bMsgReady = true;
+				}
+			}
+		}
+		break;
+
+	case 2:   // Node Config
+		{
+			nPos = strPayl.indexOf(':');
+			if (nPos > 0) {
+				bytValue = (uint8_t)(strPayl.substring(0, nPos).toInt());
+				iValue = strPayl.substring(nPos + 1).toInt();
+				lv_msg.build(_replyTo, _node, bytValue, C_INTERNAL, I_CONFIG, true);
+				lv_msg.set((unsigned int)iValue);
+				bMsgReady = true;
+				SERIAL("Now sending node:%d config:%d value:%d...", _node, bytValue, iValue);
+			}
+		}
+		break;
+
+	case 3:   // Temperature sensor present with sensor id 1, req no ack
+		lv_msg.build(_replyTo, _node, _sensor, C_PRESENTATION, S_TEMP, false);
+		lv_msg.set("");
+		bMsgReady = true;
+		SERIAL("Now sending DHT11 present message...");
+		break;
+
+	case 6:   // Get main lamp(ID:1) power(V_STATUS:2) on/off, ack
+		lv_msg.build(_replyTo, _node, _sensor, C_REQ, V_STATUS, true);
+		bMsgReady = true;
+		SERIAL("Now sending get V_STATUS message...");
+		break;
+
+	case 7:   // Set main lamp(ID:1) power(V_STATUS:2) on/off, ack
+		lv_msg.build(_replyTo, _node, _sensor, C_SET, V_STATUS, true);
+		bytValue = constrain(strPayl.toInt(), DEVICE_SW_OFF, DEVICE_SW_TOGGLE);
+		lv_msg.set(bytValue);
+		bMsgReady = true;
+		SERIAL("Now sending set V_STATUS %s message...", (bytValue ? "on" : "off"));
+		break;
+
+	case 8:   // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3), ack
+		lv_msg.build(_replyTo, _node, _sensor, C_REQ, V_PERCENTAGE, true);
+		bMsgReady = true;
+		SERIAL("Now sending get V_PERCENTAGE message...");
+		break;
+
+	case 9:   // Set main lamp(ID:1) dimmer (V_PERCENTAGE:3), ack
+		lv_msg.build(_replyTo, _node, _sensor, C_SET, V_PERCENTAGE, true);
+		bytValue = constrain(strPayl.toInt(), 0, 100);
+		lv_msg.set((uint8_t)OPERATOR_SET, bytValue);
+		bMsgReady = true;
+		SERIAL("Now sending set V_PERCENTAGE:%d message...", bytValue);
+		break;
+
+	case 10:  // Get main lamp(ID:1) color temperature (V_LEVEL), ack
+		lv_msg.build(_replyTo, _node, _sensor, C_REQ, V_LEVEL, true);
+		bMsgReady = true;
+		SERIAL("Now sending get CCT V_LEVEL message...");
+		break;
+
+	case 11:  // Set main lamp(ID:1) color temperature (V_LEVEL), ack
+		lv_msg.build(_replyTo, _node, _sensor, C_SET, V_LEVEL, true);
+		iValue = constrain(strPayl.toInt(), CT_MIN_VALUE, CT_MAX_VALUE);
+		lv_msg.set((uint8_t)OPERATOR_SET, (unsigned int)iValue);
+		bMsgReady = true;
+		SERIAL("Now sending set CCT V_LEVEL %d message...", iValue);
+		break;
+
+	case 12:  // Request lamp status in one
+		lv_msg.build(_replyTo, _node, _sensor, C_REQ, V_RGBW, true);
+		lv_msg.set((uint8_t)RING_ID_ALL);		// RING_ID_1 is also workable currently
+		bMsgReady = true;
+		SERIAL("Now sending get dev-status (V_RGBW) message...");
+		break;
+
+	case 13:  // Set main lamp(ID:1) status in one, ack
+		lv_msg.build(_replyTo, _node, _sensor, C_SET, V_RGBW, true);
+		payload[0] = RING_ID_ALL;
+		payload[1] = 1;
+		payload[2] = 65;
+		nPos = strPayl.indexOf(':');
+		if (nPos > 0) {
+			// Extract brightness, cct or WRGB
+			bytValue = (uint8_t)(strPayl.substring(0, nPos).toInt());
+			payload[2] = bytValue;
+			iValue = strPayl.substring(nPos + 1).toInt();
+			if( iValue < 256 ) {
+				// WRGB
+				payload[3] = iValue;	// W
+				payload[4] = 0;	// R
+				payload[5] = 0;	// G
+				payload[6] = 0;	// B
+				for( int cindex = 3; cindex < 7; cindex++ ) {
+					strPayl = strPayl.substring(nPos + 1);
+					nPos = strPayl.indexOf(':');
+					if (nPos <= 0) {
+						bytValue = (uint8_t)(strPayl.toInt());
+						payload[cindex] = bytValue;
+						break;
+					}
+					bytValue = (uint8_t)(strPayl.substring(0, nPos).toInt());
+					payload[cindex] = bytValue;
+				}
+				lv_msg.set((void*)payload, 7);
+				SERIAL("Now sending set BR=%d WRGB=(%d,%d,%d,%d)...",
+						payload[2], payload[3], payload[4], payload[5], payload[6]);
+			} else {
+				// CCT
+				iValue = constrain(iValue, CT_MIN_VALUE, CT_MAX_VALUE);
+				payload[3] = iValue % 256;
+			  payload[4] = iValue / 256;
+				lv_msg.set((void*)payload, 5);
+				SERIAL("Now sending set BR=%d CCT=%d...", bytValue, iValue);
+			}
+		} else {
+			iValue = 3000;
+			payload[3] = iValue % 256;
+		  payload[4] = iValue / 256;
+			lv_msg.set((void*)payload, 5);
+			SERIAL("Now sending set BR=%d CCT=%d...", bytValue, iValue);
+		}
+		bMsgReady = true;
+		break;
+
+	case 14:	// Reserved for query command
+	case 16:	// Reserved for query command
+		break;
+
+	case 15:	// Set Device Scenerio
+		bytValue = (UC)(strPayl.toInt());
+		theSys.ChangeLampScenario(_node, bytValue, _replyTo, _sensor);
+		break;
+
+	case 17:	// Set special effect
+		lv_msg.build(_replyTo, _node, _sensor, C_SET, V_VAR1, true);
+		bytValue = (UC)(strPayl.toInt());
+		lv_msg.set(bytValue);
+		bMsgReady = true;
+		SERIAL("Now setting special effect %d...", bytValue);
+		break;
+	}
+
+	if (bMsgReady) {
+		SERIAL("to %d...", lv_msg.getDestination());
+		sentOK = ProcessSend(&lv_msg);
+		my_msg = lv_msg;
+		SERIAL_LN(sentOK ? "OK" : "failed");
+	}
+
+	return sentOK;
 }
 
 bool RF433ServerClass::ProcessSend(String &strMsg, MyMessage &my_msg, const UC _replyTo, const UC _sensor)
@@ -190,7 +385,7 @@ bool RF433ServerClass::PeekMessage()
 	}
 	return true;
 }
-
+// TODO
 // Parse and process message in MQ
 bool RF433ServerClass::ProcessReceiveMQ()
 {
@@ -228,14 +423,14 @@ bool RF433ServerClass::ProcessReceiveMQ()
   }
   return true;
 }
-
+// TODO
 // Scan sendMQ and send messages, repeat if necessary
 bool RF433ServerClass::ProcessSendMQ()
 {
 	MyMessage lv_msg;
 	UC *pData = (UC *)&(lv_msg.msg);
 	CFastMessageNode *pNode = NULL, *pOld;
-	UC pipe, _repeat;
+	UC _repeat;
 	UC _tag = 0;
 	uint32_t _flag = 0;
 	bool _remove = false;
@@ -259,15 +454,15 @@ bool RF433ServerClass::ProcessSendMQ()
 
 				// Send message
 				_remove = send(lv_msg.getDestination(), lv_msg);
-				LOGD(LOGTAG_MSG, "RF-send msg %d-%d tag %d to %d pipe %d tried %d %s", lv_msg.getCommand(), lv_msg.getType(), _tag, lv_msg.getDestination(), pipe, _repeat, _remove ? "OK" : "Failed");
+				LOGD(LOGTAG_MSG, "RF-send msg %d-%d tag %d to %d tried %d %s", lv_msg.getCommand(), lv_msg.getType(), _tag, lv_msg.getDestination(), _repeat, _remove ? "OK" : "Failed");
 
 				// Determine whether requires retry
 				if( lv_msg.getDestination() == BROADCAST_ADDRESS || IS_GROUP_NODEID(lv_msg.getDestination()) ) {
 					if( _remove && _repeat == 1 ) _succ++;
-					//_remove = (_repeat > theConfig.GetBcMsgRptTimes());
+					_remove = (_repeat > theConfig.GetBcMsgRptTimes());
 				} else {
 					if( _remove ) _succ++;
-					//if( _repeat > theConfig.GetNdMsgRptTimes() ) 	_remove = true;
+					if( _repeat > theConfig.GetNdMsgRptTimes() ) 	_remove = true;
 				}
 
 				// Remove message if succeeded or retried enough times

@@ -129,7 +129,7 @@ void SmartControllerClass::Init()
 /// check RF2.4 & BLE
 void SmartControllerClass::InitRadio()
 {
-  m_isRF = theRadio.ServerBegin(theConfig.GetRFChannel(),theConfig.GetRFChannel());
+  m_isRF = theRadio.ServerBegin(theConfig.GetRFChannel(),theConfig.GetRFAddr());
   if (m_isRF)
   {
     LOGN(LOGTAG_MSG, "RF is working.");

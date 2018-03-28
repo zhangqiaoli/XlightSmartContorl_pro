@@ -47,7 +47,6 @@
 #include "xlSmartController.h"
 #include "xlxSerialConsole.h"
 #include "SparkIntervalTimer.h"
-#include "cc1100.h"
 
 //------------------------------------------------------------------
 // Program Body Begins Here
@@ -85,7 +84,8 @@ void setup()
 	WiFi.listen(false);
   // System Initialization
   theSys.Init();
-
+	// Load Configuration
+  theConfig.LoadConfig();
 	// Initialization Radio Interfaces
 	theSys.InitRadio();
 

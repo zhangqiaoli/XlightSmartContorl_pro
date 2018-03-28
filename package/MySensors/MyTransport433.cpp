@@ -34,6 +34,8 @@ bool MyTransport433::init() {
 	}
 	cc1101433.set_channel(_channel);
 	cc1101433.set_myaddr(_address);
+	
+	cc1101433.show_register_settings();
 	_bValid = true;
 	return true;
 }

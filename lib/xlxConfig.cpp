@@ -472,7 +472,7 @@ BOOL ConfigClass::IsValidConfig()
 			|| m_config.numNodes > MAX_NODE_PER_CONTROLLER
 			|| m_config.typeMainDevice == devtypUnknown
 			|| m_config.typeMainDevice >= devtypDummy
-			//|| m_config.rfPowerLevel > RF24_PA_MAX
+			//|| m_config. > RF24_PA_MAX
 		 	|| m_config.useCloud > CLOUD_MUST_CONNECT
 		 	|| (IS_NOT_DEVICE_NODEID(m_config.mainDevID) && m_config.mainDevID != NODEID_DUMMY) )
     {
