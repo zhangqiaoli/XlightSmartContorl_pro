@@ -171,7 +171,10 @@ void loop()
 	//TODO Process Panel input
   //IF_MAINLOOP_TIMER( theSys.ProcessPanel(), "ProcessPanel" );
   // Self-test & alarm trigger, also insert delay between each loop
-  IF_MAINLOOP_TIMER( theSys.SelfCheck(RTE_DELAY_SELFCHECK), "SelfCheck" );
+	if( millis() - lastTick >= RTE_DELAY_SELFCHECK ) {
+	  lastTick = millis();
+		IF_MAINLOOP_TIMER( theSys.SelfCheck(RTE_DELAY_SELFCHECK), "SelfCheck" );
+  }
 	IF_MAINLOOP_TIMER( Particle.process(), "ProcessCloud" );
 }
 

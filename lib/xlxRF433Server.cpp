@@ -280,6 +280,7 @@ bool RF433ServerClass::ProcessSend(const UC _node, const UC _msgID, String &strP
 
 bool RF433ServerClass::ProcessSend(String &strMsg, MyMessage &my_msg, const UC _replyTo, const UC _sensor)
 {
+	//LOGD(LOGTAG_MSG, "Will process %s",strMsg);
 	int nPos;
 	int nPos2;
 	uint8_t lv_nNodeID = 0, lv_nSubID;
@@ -322,11 +323,12 @@ bool RF433ServerClass::ProcessSend(String &strMsg, MyMessage &my_msg, const UC _
 	}
 	else {
 		// Parse serial message
-    //LOGD(LOGTAG_MSG, "serial msg: %s", strMsg);
+    //
 		lv_nMsgID = 0;
 		lv_sPayload = strMsg;
 	}
-
+	//LOGD(LOGTAG_MSG, "serial msg: %s", strMsg);
+  LOGD(LOGTAG_MSG, "Will process nodeid=%d,msgid=%d",lv_nNodeID,lv_nMsgID);
 	return ProcessSend(lv_nNodeID, lv_nMsgID, lv_sPayload, my_msg, _replyTo, lv_nSubID);
 }
 
@@ -345,7 +347,7 @@ bool RF433ServerClass::ProcessSend(MyMessage *pMsg)
 	// Add message to sending MQ. Right now tag has no actual purpose (just for debug)
 	uint32_t flag = 0;
 	flag = ((uint32_t)pMsg->getSensor()<<24) | ((uint32_t)pMsg->getCommand()<<16) | ((uint32_t)pMsg->getType()<<8) | (pMsg->getDestination());
-	//LOGD(LOGTAG_MSG, "flag=%d,d=%d,cmd=%d,type=%d,sensor=%d",flag,pMsg->getDestination(),pMsg->getCommand(),pMsg->getType(),pMsg->getSensor());
+	LOGD(LOGTAG_MSG, "flag=%d,d=%d,cmd=%d,type=%d,sensor=%d",flag,pMsg->getDestination(),pMsg->getCommand(),pMsg->getType(),pMsg->getSensor());
 	if( AddMessage((UC *)&(pMsg->msg), MAX_MESSAGE_LENGTH, GetMQLength(), flag) > 0 ) {
 		_times++;
 		LOGD(LOGTAG_MSG, "Add sendMQ len:%d", GetMQLength());
