@@ -459,13 +459,14 @@ bool RF433ServerClass::ProcessSendMQ()
 				LOGD(LOGTAG_MSG, "RF-send msg %d-%d tag %d to %d tried %d %s", lv_msg.getCommand(), lv_msg.getType(), _tag, lv_msg.getDestination(), _repeat, _remove ? "OK" : "Failed");
 
 				// Determine whether requires retry
-				if( lv_msg.getDestination() == BROADCAST_ADDRESS || IS_GROUP_NODEID(lv_msg.getDestination()) ) {
+				// TODO
+				/*if( lv_msg.getDestination() == BROADCAST_ADDRESS || IS_GROUP_NODEID(lv_msg.getDestination()) ) {
 					if( _remove && _repeat == 1 ) _succ++;
 					_remove = (_repeat > theConfig.GetBcMsgRptTimes());
 				} else {
 					if( _remove ) _succ++;
 					if( _repeat > theConfig.GetNdMsgRptTimes() ) 	_remove = true;
-				}
+				}*/
 
 				// Remove message if succeeded or retried enough times
 				if( _remove ) {

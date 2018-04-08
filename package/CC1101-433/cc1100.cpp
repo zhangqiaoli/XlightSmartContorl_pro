@@ -416,7 +416,7 @@ uint8_t CC1100::sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer,
         transmit();                                             //sents data over air
         receive();                                              //receive mode
 
-        if(rx_addr == BROADCAST_ADDRESS){                       //no wait acknowledge if sent to broadcast address or tx_retries = 0
+        if(rx_addr == BROADCAST_ADDRESS || rx_addr == BROADCAST_ADDRESS1){                       //no wait acknowledge if sent to broadcast address or tx_retries = 0
             return TRUE;                                        //successful sent to BROADCAST_ADDRESS
         }
         Serial.printf("wait for ack\n");
@@ -564,8 +564,8 @@ uint8_t CC1100::check_acknolage(uint8_t *rxbuffer, uint8_t pktlen, uint8_t sende
     Serial.println(F("RECV ACK"));
     if((pktlen == 0x05 && \
        (rxbuffer[1] == my_addr || rxbuffer[1] == BROADCAST_ADDRESS)) && \
-        rxbuffer[2] == sender && \
-        rxbuffer[3] == 'A' && rxbuffer[4] == 'c' && rxbuffer[5] == 'k') //acknolage received!
+        rxbuffer[2] == sender/* && \
+        rxbuffer[3] == 'A' && rxbuffer[4] == 'c' && rxbuffer[5] == 'k'*/) //acknolage received!
         {
             if(rxbuffer[1] == BROADCAST_ADDRESS){                           //if receiver address BROADCAST_ADDRESS skip acknolage
                 if(debug_level > 0){

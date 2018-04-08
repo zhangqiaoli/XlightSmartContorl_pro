@@ -260,7 +260,9 @@ BOOL SmartControllerClass::Start()
 	// Change Panel LED ring to the recent level
 	thePanel.SetDimmerValue(theConfig.GetBrightIndicator());
 
+	// TODO
 	// Sync panel with dev-st
+	/*
 	if( m_pMainDev ) {
 		// Set panel ring on or off
 		thePanel.SetRingOnOff(m_pMainDev->data.ring[0].State);
@@ -275,7 +277,8 @@ BOOL SmartControllerClass::Start()
 			// ToDo: set RGBW
 		}
 	}
-
+    */
+	
 	// Restore relay key to previous state
 	theConfig.SetRelayKeys(pre_relay_keys);
 	relay_restore_keystate();
@@ -288,7 +291,8 @@ BOOL SmartControllerClass::Start()
 	//QueryDeviceStatus(CURRENT_DEVICE);
 
 	// Request the main device to report status
-	RequestDeviceStatus(CURRENT_DEVICE);
+	// TODO if need current device
+	//RequestDeviceStatus(CURRENT_DEVICE);
 
 	// Acts on the Rules rules newly loaded from flash
 	ReadNewRules(true);

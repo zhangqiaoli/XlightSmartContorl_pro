@@ -107,7 +107,7 @@ void setup()
 
 	if( !theConfig.GetDisableWiFi() ) {
 		while(1) {
-			if( !WiFi.hasCredentials() || !theConfig.GetWiFiStatus() ) {
+			if( !WiFi.hasCredentials()/* || !theConfig.GetWiFiStatus() */) {
 				if( !theSys.connectWiFi() ) {
 					// get credential from BLE or Serial
 					SERIAL_LN("will enter listening mode");

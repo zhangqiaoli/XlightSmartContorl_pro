@@ -21,6 +21,7 @@
 #define ACK_TIMEOUT                200  //ACK timeout in ms
 #define CC1100_COMPARE_REGISTER   0x00  //register compare 0=no compare 1=compare
 #define BROADCAST_ADDRESS         0x00  //broadcast address
+#define BROADCAST_ADDRESS1        0xFF  //broadcast address
 #define CC1100_FREQ_315MHZ        0x01
 #define CC1100_FREQ_434MHZ        0x02
 #define CC1100_FREQ_868MHZ        0x03
