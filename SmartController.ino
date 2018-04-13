@@ -168,9 +168,6 @@ void loop()
 	// Process commands
   IF_MAINLOOP_TIMER( theSys.ProcessCommands(), "ProcessCommands" );
 
-	//TODO Process Panel input
-  //IF_MAINLOOP_TIMER( theSys.ProcessPanel(), "ProcessPanel" );
-  // Self-test & alarm trigger, also insert delay between each loop
 	if( millis() - lastTick >= RTE_DELAY_SELFCHECK ) {
 	  lastTick = millis();
 		IF_MAINLOOP_TIMER( theSys.SelfCheck(RTE_DELAY_SELFCHECK), "SelfCheck" );

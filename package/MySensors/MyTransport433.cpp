@@ -34,7 +34,6 @@ bool MyTransport433::init() {
 	}
 	cc1101433.set_channel(_channel);
 	cc1101433.set_myaddr(_address);
-	
 	cc1101433.show_register_settings();
 	_bValid = true;
 	return true;
@@ -69,23 +68,23 @@ bool MyTransport433::CheckConfig()
 	return true;
 }
 
-bool MyTransport433::send(uint8_t to, const void* data, uint8_t len) {
+bool MyTransport433::send(uint8_t to, const void* data, uint8_t len,uint8_t *rxdata,uint8_t& reslen) {
 	uint8_t sndmsg[FIFOBUFFER];
 	memset(sndmsg,0x00,FIFOBUFFER);
 	sndmsg[0]=len+2;
 	sndmsg[1]=to;
 	sndmsg[2]=_address;
 	memcpy(sndmsg+3,data,len);
-	uint8_t ok = cc1101433.sent_packet(_address,to,sndmsg,len+3,5);
+	uint8_t ok = cc1101433.sent_packet(_address,to,sndmsg,rxdata,len+3,reslen,5);
 	if(ok) return true;
 	return false;
 }
 
-bool MyTransport433::send(uint8_t to, MyMessage &message) {
+bool MyTransport433::send(uint8_t to, MyMessage &message, MyMessage &recvmessage,uint8_t& reslen) {
 	message.setVersion(PROTOCOL_VERSION);
 	message.setLast(_address);
 	uint8_t length = message.getSigned() ? MAX_MESSAGE_LENGTH : message.getLength();
-	return send(to, (void *)&(message.msg), min(MAX_MESSAGE_LENGTH, HEADER_SIZE + length));
+	return send(to, (void *)&(message.msg), min(MAX_MESSAGE_LENGTH, HEADER_SIZE + length),(uint8_t *)&(recvmessage.msg),reslen);
 }
 
 bool MyTransport433::available() {

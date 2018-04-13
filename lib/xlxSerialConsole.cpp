@@ -512,7 +512,64 @@ bool SerialConsoleClass::doShow(const char *cmd)
       CloudOutput("s_version:%s-%d", System.version().c_str(), theConfig.GetVersion());
   	} else if (wal_strnicmp(sTopic, "debug", 5) == 0) {
       CloudOutput(theLog.PrintDestInfo());
-  	} else {
+  }  else if (wal_strnicmp(sTopic, "keymap", 6) == 0) {
+      SERIAL_LN("HW switch object type: %d, loopkc: %d", theConfig.GetRelayKeyObj(), theSys.GetLoopKeyCode());
+      theConfig.showKeyMap();
+  } else if (wal_strnicmp(sTopic, "extbtn", 6) == 0) {
+      theConfig.showButtonActions();
+  }  else if (wal_strnicmp(sTopic, "time", 4) == 0) {
+      time_t time = Time.now();
+      SERIAL_LN("Now is %s, %s\n\r", Time.format(time, TIME_FORMAT_ISO8601_FULL).c_str(), theSys.m_tzString.c_str());
+      CloudOutput("s_time:%s-%s", Time.format(time, TIME_FORMAT_ISO8601_FULL).c_str(), theSys.m_tzString.c_str());
+  } else if (wal_strnicmp(sTopic, "var", 3) == 0) {
+	  SERIAL_LN("mSysID = \t\t\t%s", theSys.m_SysID.c_str());
+	  SERIAL_LN("m_SysStatus = \t\t\t%d", theSys.m_SysStatus);
+      SERIAL_LN("useCloud = \t\t\t%d", theConfig.GetUseCloud());
+	  SERIAL_LN("m_tzString = \t\t\t%s", theSys.m_tzString.c_str());
+      SERIAL_LN("m_strCldCmd = \t\t%s\n\r", theSys.m_strCldCmd.c_str());
+	  SERIAL_LN("m_lastMsg = \t\t\t%s", theSys.m_lastMsg.c_str());
+      SERIAL_LN("");
+      SERIAL_LN("indBrightness = \t\t%d", theConfig.GetBrightIndicator());
+      SERIAL_LN("relay_keys = \t\t\t0x%02X", theConfig.GetRelayKeys());
+	  //SERIAL_LN("rfPowerLevel = \t\t\t%d", theConfig.GetRFPowerLevel());
+      //SERIAL_LN("m_temperature = \t\t%.2f", theSys.m_temperature);
+	  //SERIAL_LN("m_humidity = \t\t\t%.2f", theSys.m_humidity);
+	  //SERIAL_LN("m_brightness = \t\t\t%u", theSys.m_brightness);
+      //SERIAL_LN("m_dust = \t\t\t%d", theSys.m_dust);
+	  //SERIAL_LN("m_motion = \t\t\t%s", (theSys.m_motion ? "true" : "false"));
+      SERIAL_LN("");
+      SERIAL_LN("Main DeviceID = \t\t%d-%d", CURRENT_DEVICE, CURRENT_SUBDEVICE);
+      SERIAL_LN("typeMainDevice = \t\t%d", theConfig.GetMainDeviceType());
+      SERIAL_LN("numDevices = \t\t\t%d", theConfig.GetNumDevices());
+      SERIAL_LN("numNodes = \t\t\t%d", theConfig.GetNumNodes());
+      SERIAL_LN("maxBaseNetworkDuration = \t%d", theConfig.GetMaxBaseNetworkDur());
+      SERIAL_LN("bmrt =   \t\t\t%d", theConfig.GetBcMsgRptTimes());
+      SERIAL_LN("nmrt =   \t\t\t%d", theConfig.GetNdMsgRptTimes());
+      SERIAL_LN("loopkc = \t\t\t%d", theSys.GetLoopKeyCode());
+      SERIAL_LN("loop kcto = \t\t\t%d", theConfig.GetTimeLoopKC());
+      SERIAL_LN("hwsObj = \t\t\t%d", theConfig.GetRelayKeyObj());
+  } else if (wal_strnicmp(sTopic, "flag", 4) == 0) {
+      SERIAL_LN("WAN Chip: \t\t\t%s", theConfig.GetDisableWiFi() ? "disabled" : "enabled");
+	  SERIAL_LN("m_isRF = \t\t\t%d", theSys.IsRFGood());
+	  SERIAL_LN("m_isLAN = \t\t\t%d", theSys.IsLANGood());
+	  SERIAL_LN("m_isWAN = \t\t\t%d", theSys.IsWANGood());
+	  SERIAL_LN("lamp Chip: \t\t\t%s", theConfig.GetDisableLamp() ? "disabled" : "enabled");
+      SERIAL_LN("");
+      SERIAL_LN("fixedNodeID = \t\t\t%d", theConfig.IsFixedNID());
+      SERIAL_LN("enableCloudSerialCmd = \t\t%d", theConfig.IsCloudSerialEnabled());
+      SERIAL_LN("enableDailyTimeSync = \t\t%d", theConfig.IsDailyTimeSyncEnabled());
+      SERIAL_LN("enableSpeaker = \t\t%d", theConfig.IsSpeakerEnabled());
+      SERIAL_LN("stWiFi = \t\t\t%d", theConfig.GetWiFiStatus());
+      SERIAL_LN("hwsw =   \t\t\t%d", theConfig.GetHardwareSwitch());
+      SERIAL_LN("");
+	  SERIAL_LN("m_isLoaded = \t\t\t%d", theConfig.IsConfigLoaded());
+	  SERIAL_LN("m_isChanged = \t\t\t%d", theConfig.IsConfigChanged());
+	  SERIAL_LN("m_isDSTChanged = \t\t%d", theConfig.IsDSTChanged());
+	  SERIAL_LN("m_isSCTChanged = \t\t%d", theConfig.IsSCTChanged());
+	  SERIAL_LN("m_isRTChanged = \t\t%d", theConfig.IsRTChanged());
+	  SERIAL_LN("m_isSNTChanged = \t\t%d", theConfig.IsSNTChanged());
+      SERIAL_LN("IsNIDChanged = \t\t\t%d\n\r", theConfig.IsNIDChanged());
+  } else {
       retVal = false;
     }
   } else {
@@ -572,13 +629,6 @@ bool SerialConsoleClass::doTest(const char *cmd)
       char *sIPaddress = next();
       PingAddress(sIPaddress);
       retVal = true;
-    } else if (wal_strnicmp(sTopic, "ledring", 7) == 0) {
-      UC testNo = 0;
-      sParam = next();
-      if( sParam) { testNo = (UC)atoi(sParam); }
-      SERIAL("Checking brightness indicator LEDs...");
-      SERIAL_LN("%s\n\r", thePanel.CheckLEDRing(testNo) ? "done" : "error");
-      retVal = true;
     } else if (wal_strnicmp(sTopic, "ledrgb", 6) == 0) {
       // ToDo:
     } else if (wal_strnicmp(sTopic, "send", 4) == 0) {
@@ -634,6 +684,237 @@ bool SerialConsoleClass::doSet(const char *cmd)
   char *sParam1, *sParam2, *sParam3, *sParam4;
   if( sTopic ) {
     if (wal_strnicmp(sTopic, "tz", 2) == 0) {
+      sParam1 = next();
+      if( sParam1) {
+        String strMsg = sParam1;
+        retVal = theLog.ChangeLogLevel(strMsg);
+        if( retVal ) {
+          SERIAL_LN("Set Debug Level to %s\n\r", sParam1);
+          CloudOutput("debug:%s", sParam1);
+        }
+      }
+    }else if (wal_strnicmp(sTopic, "flag", 4) == 0) {
+      // Change flag value
+      sParam1 = next();   // Get flag name
+      if( sParam1) {
+        sParam2 = next();   // Get flag value
+        if( sParam2 ) {
+          if (wal_strnicmp(sParam1, "csc", 3) == 0) {
+            theConfig.SetCloudSerialEnabled(atoi(sParam2) > 0);
+            SERIAL_LN("Cloud Serial Command is %s\n\r", (theConfig.IsCloudSerialEnabled() ? "enabled" : "disabled"));
+            CloudOutput("f_csc:%s", (theConfig.IsCloudSerialEnabled() ? "enabled" : "disabled"));
+            retVal = true;
+          } else if (wal_strnicmp(sParam1, "fnid", 4) == 0) {
+            theConfig.SetFixedNID(atoi(sParam2) > 0);
+            SERIAL_LN("Fixed NodeID is %s\n\r", (theConfig.IsFixedNID() ? "enabled" : "disabled"));
+            CloudOutput("f_fnid:%d", theConfig.IsFixedNID());
+            retVal = true;
+          } else if (wal_strnicmp(sParam1, "hwsw", 4) == 0) {
+            theConfig.SetHardwareSwitch(atoi(sParam2) > 0);
+            SERIAL_LN("Default use %s switch\n\r", (theConfig.GetHardwareSwitch() ? "Hardware" : "Software"));
+            CloudOutput("hwsw:%d", theConfig.GetHardwareSwitch());
+            retVal = true;
+          } else if (wal_strnicmp(sParam1, "wifi", 4) == 0) {
+            theConfig.SetDisableWiFi(atoi(sParam2) == 0);
+            retVal = true;
+          }
+		  else if (wal_strnicmp(sParam1, "lamp", 4) == 0) {
+			  theConfig.SetDisableLamp(atoi(sParam2) == 0);
+			  CloudOutput("lamp:%d", theConfig.GetDisableLamp());
+			  retVal = true;
+          }
+        } else {
+          SERIAL_LN("Require flag value, use '? set flag' for detail\n\r");
+          retVal = true;
+        }
+      } else {
+        SERIAL_LN("Require flag name and value, use '? set flag' for detail\n\r");
+        retVal = true;
+      }
+    } else if (wal_strnicmp(sTopic, "var", 3) == 0) {
+      // Change variable value
+      sParam1 = next();   // Get variable name
+      if( sParam1) {
+        sParam2 = next();   // Get variable value
+        if( sParam2 ) {
+         if (wal_strnicmp(sParam1, "devst", 5) == 0) {
+            if( !theSys.SetStatus((UC)atoi(sParam2)) ) {
+              SERIAL_LN("Failed to set Device Status: %s\n\r", sParam2);
+              CloudOutput("Failed to set DevStatus %s", sParam2);
+            }
+            retVal = true;
+          } else if (wal_strnicmp(sParam1, "bmrt", 4) == 0) {
+            theConfig.SetBcMsgRptTimes((UC)atoi(sParam2));
+            SERIAL_LN("Bcast Msg Repeat Times: %d\n\r", theConfig.GetBcMsgRptTimes());
+            CloudOutput("v_bmrt:%d", theConfig.GetBcMsgRptTimes());
+            retVal = true;
+          } else if (wal_strnicmp(sParam1, "nmrt", 4) == 0) {
+            theConfig.SetNdMsgRptTimes((UC)atoi(sParam2));
+            SERIAL_LN("Node Msg Repeat Times: %d\n\r", theConfig.GetNdMsgRptTimes());
+            CloudOutput("v_nmrt:%d", theConfig.GetNdMsgRptTimes());
+            retVal = true;
+          } else if (wal_strnicmp(sParam1, "rfch", 4) == 0) {
+            theConfig.SetRFChannel((UC)atoi(sParam2));
+            SERIAL_LN("RF Channel: %d    \n\r", theRadio.getChannel(false));
+            CloudOutput("v_rfch:%d", theRadio.getChannel(false));
+            retVal = true;
+          }else if (wal_strnicmp(sParam1, "rfaddr", 4) == 0) {
+            theConfig.SetRFAddr((UC)atoi(sParam2));
+            SERIAL_LN("RF Addr: %d      \n\r", theRadio.getAddress());
+            CloudOutput("v_rfdr:%d", theRadio.getAddress());
+            retVal = true;
+          }
+        } else {
+          SERIAL_LN("Require var value, use '? set var' for detail\n\r");
+          retVal = true;
+        }
+      } else {
+        SERIAL_LN("Require var name and value, use '? set var' for detail\n\r");
+        retVal = true;
+      }
+    } else if (wal_strnicmp(sTopic, "spkr", 4) == 0) {
+      // Enable or disable speaker
+      sParam1 = next();   // Get speaker flag
+      if( sParam1) {
+        theConfig.SetSpeakerEnabled(atoi(sParam1) > 0);
+        SERIAL_LN("Speaker is %s\n\r", (theConfig.IsSpeakerEnabled() ? "enabled" : "disabled"));
+        CloudOutput("spkr:%s", (theConfig.IsSpeakerEnabled() ? "enabled" : "disabled"));
+        retVal = true;
+      } else {
+        SERIAL_LN("Require spkr flag value [0|1], use '? set spkr' for detail\n\r");
+        retVal = true;
+      }
+    } else if (wal_strnicmp(sTopic, "cloud", 5) == 0) {
+      // Cloud Option
+      sParam1 = next();
+      if( sParam1) {
+        theConfig.SetUseCloud(atoi(sParam1));
+        SERIAL_LN("Cloud option set to %d\n\r", theConfig.GetUseCloud());
+        CloudOutput("cloud:%d", theConfig.GetUseCloud());
+        retVal = true;
+      } else {
+        SERIAL_LN("Require Cloud option [0|1|2], use '? set cloud' for detail\n\r");
+        retVal = true;
+      }
+    } else if (wal_strnicmp(sTopic, "maindev", 7) == 0) {
+      // Main device id
+      sParam1 = next();
+      if( sParam1) {
+        theConfig.SetMainDeviceID(atoi(sParam1));
+        SERIAL_LN("Main device changed to %d\n\r", CURRENT_DEVICE);
+        CloudOutput("maindev:%d", CURRENT_DEVICE);
+        retVal = true;
+      } else {
+        SERIAL_LN("Require a valid nodeID\n\r");
+        retVal = true;
+      }
+    } else if (wal_strnicmp(sTopic, "subid", 5) == 0) {
+      // Sub device id
+      sParam1 = next();
+      if( sParam1) {
+        theConfig.SetSubDeviceID(atoi(sParam1));
+        SERIAL_LN("SubNID changed to %d\n\r", CURRENT_SUBDEVICE);
+        CloudOutput("sid:%d", CURRENT_SUBDEVICE);
+        retVal = true;
+      }
+    } else if (wal_strnicmp(sTopic, "remote", 6) == 0) {
+      // Remote controlled device
+      sParam1 = next();     // Get remote node_id
+      if( sParam1) {
+        sParam2 = next();   // Get device node_id
+        if( sParam2 ) {
+          theConfig.SetRemoteNodeDevice(atoi(sParam1), atoi(sParam2));
+          SERIAL_LN("Remote %s controls device %s\n\r", sParam1, sParam2);
+          CloudOutput("remote:%s-%s", sParam1, sParam2);
+          retVal = true;
+        } else {
+          SERIAL_LN("Require a valid device nodeID\n\r");
+          retVal = true;
+        }
+      } else {
+        SERIAL_LN("Require a valid remote nodeID\n\r");
+        retVal = true;
+      }
+    }else if (wal_strnicmp(sTopic, "hwsobj", 6) == 0) {
+      // Relay key object type
+      sParam1 = next();
+      if( sParam1) {
+        theConfig.SetRelayKeyObj(atoi(sParam1));
+        SERIAL_LN("Set HW switch obj: %d\n\r", theConfig.GetRelayKeyObj());
+        CloudOutput("hwsobj:%d", theConfig.GetRelayKeyObj());
+        retVal = true;
+      }
+    } else if (wal_strnicmp(sTopic, "loopkc", 6) == 0) {
+      // Relay key loop code
+      sParam1 = next();
+      if( sParam1) {
+        if( theSys.SetLoopKeyCode(atoi(sParam1)) ) {
+          SERIAL_LN("Set loop keycode: %d\n\r", theSys.GetLoopKeyCode());
+          CloudOutput("loopkc:%d", theSys.GetLoopKeyCode());
+          retVal = true;
+        }
+      }
+    } else if (wal_strnicmp(sTopic, "kcto", 4) == 0) {
+      // Relay key loop code
+      sParam1 = next();
+      if( sParam1) {
+        theConfig.SetTimeLoopKC(atoi(sParam1));
+        SERIAL_LN("Set loop keycode timeout: %d\n\r", theConfig.GetTimeLoopKC());
+        CloudOutput("kcto:%d", theConfig.GetTimeLoopKC());
+        retVal = true;
+      }
+    }else if (wal_strnicmp(sTopic, "keymap", 6) == 0) {
+      // Keymap item
+      sParam1 = next();     // Get key
+      if( sParam1) {
+        sParam2 = next();   // Get nodeID
+        if( sParam2 ) {
+          UC subID = 0;
+          sParam3 = next();   // Get subID
+          if( sParam3 ) subID = (UC)atoi(sParam3);
+          theConfig.SetKeyMapItem((UC)atoi(sParam1), (UC)atoi(sParam2), subID);
+          SERIAL_LN("Key%s maps to %s-%d\n\r", sParam1, sParam2, subID);
+          CloudOutput("key%s:%s-%d", sParam1, sParam2, subID);
+          retVal = true;
+        } else {
+          SERIAL_LN("Require a valid nodeID\n\r");
+          retVal = true;
+        }
+      } else {
+        SERIAL_LN("Require a valid keyID (1 to %d)\n\r", MAX_KEY_MAP_ITEMS);
+        retVal = true;
+      }
+    } else if (wal_strnicmp(sTopic, "extbtn", 6) == 0) {
+      // Change action of ext. button
+      sParam1 = next();     // Get button key (0 based)
+      if( sParam1) {
+        sParam2 = next();   // Get operation ID
+        if( sParam2 ) {
+          sParam3 = next();   // Get action ID
+          if( sParam3 ) {
+            sParam4 = next();   // Get keymap
+            if( sParam4 ) {
+              theConfig.SetExtBtnAction((UC)atoi(sParam1), (UC)atoi(sParam2), (UC)atoi(sParam3), (UC)atoi(sParam4));
+              SERIAL_LN("extbtn%s(%s) maps to %s-%s\n\r", sParam1, sParam2, sParam3, sParam4);
+              CloudOutput("extbtn%s(%s):%s-%s", sParam1, sParam2, sParam3, sParam4);
+              retVal = true;
+            } else {
+              SERIAL_LN("Require keymap\n\r");
+              retVal = true;
+            }
+          } else {
+            SERIAL_LN("Require a valid action id (0, 1 or 2)\n\r");
+            retVal = true;
+          }
+        } else {
+          SERIAL_LN("Require a valid operation id (0 to %d)\n\r", MAX_BTN_OP_TYPE - 1);
+          retVal = true;
+        }
+      } else {
+        SERIAL_LN("Require a valid button id (0 to %d)\n\r", MAX_NUM_BUTTONS - 1);
+        retVal = true;
+      }
+    } else if (wal_strnicmp(sTopic, "debug", 5) == 0) {
       sParam1 = next();
       if( sParam1) {
         String strMsg = sParam1;

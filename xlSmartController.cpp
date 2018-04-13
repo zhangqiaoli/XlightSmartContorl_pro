@@ -220,12 +220,6 @@ void SmartControllerClass::InitPins()
 	btnExt4.multiclickTime = 500;  // Time limit for multi clicks
 	btnExt4.longClickTime  = 2000; // time until "held-down clicks" register
 #endif
-
-	// Init Panel components
-	thePanel.InitPanel();
-	// Change Panel LED ring to indicate panel is working
-	thePanel.CheckLEDRing(2);
-	thePanel.CheckLEDRing(3);
 }
 
 
@@ -257,28 +251,6 @@ BOOL SmartControllerClass::Start()
 	ResetSerialPort();
 #endif
 
-	// Change Panel LED ring to the recent level
-	thePanel.SetDimmerValue(theConfig.GetBrightIndicator());
-
-	// TODO
-	// Sync panel with dev-st
-	/*
-	if( m_pMainDev ) {
-		// Set panel ring on or off
-		thePanel.SetRingOnOff(m_pMainDev->data.ring[0].State);
-		DevSoftSwitch(m_pMainDev->data.ring[0].State, CURRENT_DEVICE, CURRENT_SUBDEVICE);
-		// Set CCT or RGBW
-		if( IS_SUNNY(m_pMainDev->data.type) ) {
-			// Set CCT
-			thePanel.UpdateCCTValue(m_pMainDev->data.ring[0].CCT);
-			ChangeLampCCT(CURRENT_DEVICE, m_pMainDev->data.ring[0].CCT);
-		} else if( IS_RAINBOW(m_pMainDev->data.type) || IS_MIRAGE(m_pMainDev->data.type) ) {
-			// Rainbow or Mirage
-			// ToDo: set RGBW
-		}
-	}
-    */
-	
 	// Restore relay key to previous state
 	theConfig.SetRelayKeys(pre_relay_keys);
 	relay_restore_keystate();
@@ -592,16 +564,6 @@ void SmartControllerClass::ProcessCloudCommands()
 	}
 }
 
-
-// Process panel operations, such as key press, knob rotation, etc.
-bool SmartControllerClass::ProcessPanel()
-{
-	// Process Panel Encoder
-	thePanel.ProcessEncoder();
-
-	return true;
-}
-
 //------------------------------------------------------------------
 // Device Control Functions
 //------------------------------------------------------------------
@@ -670,7 +632,7 @@ bool SmartControllerClass::HardConfirmOnOff(UC dev, const UC subID, const UC _st
 
 		// Set panel ring on or off
 		if( IS_CURRENT_DEVICE(dev) || (dev == NODEID_DUMMY && (subID == 0 || subID == CURRENT_SUBDEVICE)) ) {
-			thePanel.SetRingOnOff(_st);
+			thePanel.SetOnOff(_st);
 			if( m_pMainDev ) {
 				m_pMainDev->data.ring[0].State = _st;
 				m_pMainDev->data.ring[1].State = _st;
@@ -701,7 +663,7 @@ bool SmartControllerClass::MakeSureHardSwitchOn(UC dev, const UC subID)
 			}
 		}
 	}
-	if(theConfig.GetDisableLamp()) thePanel.SetRingOnOff(true);
+	if(theConfig.GetDisableLamp()) thePanel.SetOnOff(true);
 	return true;
 }
 
@@ -911,8 +873,6 @@ void SmartControllerClass::ExtButtonProcess()
 // High speed system timer process
 void SmartControllerClass::FastProcess()
 {
-	// Refresh Encoder
-	thePanel.EncoderAvailable();
 
 	// Update ext. buttons
 	ExtButtonProcess();
@@ -2377,7 +2337,7 @@ UC SmartControllerClass::GetDevOnOff(UC _nodeID)
 		_st = (DevStatusRowPtr->data.ring[0].BR < BR_MIN_VALUE ? DEVICE_SW_OFF : DevStatusRowPtr->data.ring[0].State);
 		//LOGW(LOGTAG_MSG, "Find dev node:%d success,st:%d", _nodeID,_st);
 	} else {
-		_st = thePanel.GetRingOnOff() ? DEVICE_SW_ON : DEVICE_SW_OFF;
+		_st = thePanel.GetOnOff() ? DEVICE_SW_ON : DEVICE_SW_OFF;
 		//LOGW(LOGTAG_MSG, "Find dev node:%d fail,st:%d", _nodeID,_st);
 	}
 	return _st;
@@ -2414,7 +2374,7 @@ US SmartControllerClass::GetDevCCT(UC _nodeID)
 	if (DevStatusRowPtr) {
 		_cct = DevStatusRowPtr->data.ring[0].CCT;
 	} else {
-		_cct = (US)thePanel.GetCCTValue(false);
+		_cct = (US)thePanel.GetCCTValue();
 	}
 	return _cct;
 }
@@ -2497,7 +2457,7 @@ BOOL SmartControllerClass::ToggleLampOnOff(UC _nodeID, const UC subID)
 		_st = (DevStatusRowPtr->data.ring[0].BR < BR_MIN_VALUE ? true : !DevStatusRowPtr->data.ring[0].State);
 	} else {
 		//LOGD(LOGTAG_MSG, "ring=%d",thePanel.GetRingOnOff());
-		_st = thePanel.GetRingOnOff() ? DEVICE_SW_OFF : DEVICE_SW_ON;
+		_st = thePanel.GetOnOff() ? DEVICE_SW_OFF : DEVICE_SW_ON;
 	}
 
 	rc = DeviceSwitch(_st, 2, _nodeID, subID);
@@ -2617,28 +2577,15 @@ BOOL SmartControllerClass::RequestDeviceStatus(UC _nodeID, const UC subID)
 BOOL SmartControllerClass::ConfirmLampOnOff(UC _nodeID, UC _st)
 {
 	BOOL rc = false;
-	//m_pMainDev->data.ring[0].State = _st;
-	ListNode<DevStatusRow_t> *DevStatusRowPtr = SearchDevStatus(_nodeID);
-	if (DevStatusRowPtr) {
-		DevStatusRowPtr->data.present = 1;
-		DevStatusRowPtr->data.ring[0].State = _st;
-		DevStatusRowPtr->data.ring[1].State = _st;
-		DevStatusRowPtr->data.ring[2].State = _st;
-		DevStatusRowPtr->data.run_flag = EXECUTED;
-		DevStatusRowPtr->data.flash_flag = UNSAVED;
-		DevStatusRowPtr->data.op_flag = POST;
-		theConfig.SetDSTChanged(true);
 
-		// Set panel ring on or off
-		if( IS_CURRENT_DEVICE(_nodeID) ) {
-			thePanel.SetRingOnOff(_st);
-		}
-
-		// Publish device status event
-		String strTemp = String::format("{'nd':%d,'State':%d}", _nodeID, _st);
-		PublishDeviceStatus(strTemp.c_str());
-		rc = true;
+	if( IS_CURRENT_DEVICE(_nodeID) ) {
+		thePanel.SetOnOff(_st);
 	}
+
+	// Publish device status event
+	String strTemp = String::format("{'nd':%d,'State':%d}", _nodeID, _st);
+	PublishDeviceStatus(strTemp.c_str());
+	rc = true;
 	return rc;
 }
 
@@ -2647,49 +2594,30 @@ BOOL SmartControllerClass::ConfirmLampBrightness(UC _nodeID, UC _st, UC _percent
 	//LOGW(LOGTAG_MSG, "ConfirmLampBrightness node:%d st:%d,br:%d", _nodeID, _st,_percentage);
 	BOOL rc = false;
 	UC r_index = (_ringID == RING_ID_ALL ? 0 : _ringID - 1);
-	//m_pMainDev->data.ring[0].BR = _percentage;
-	ListNode<DevStatusRow_t> *DevStatusRowPtr = SearchDevStatus(_nodeID);
-	if (DevStatusRowPtr) {
-		//LOGW(LOGTAG_MSG, "find node ptr", _nodeID, _st,_percentage);
-		ConfirmLampPresent(DevStatusRowPtr, true);
-		if( DevStatusRowPtr->data.ring[r_index].State != _st || DevStatusRowPtr->data.ring[r_index].BR != _percentage ) {
-			//LOGW(LOGTAG_MSG, "set node:%d st:%d,br:%d", _nodeID, _st,_percentage);
-			DevStatusRowPtr->data.present = 1;
-			DevStatusRowPtr->data.ring[r_index].State = _st;
-			DevStatusRowPtr->data.ring[r_index].BR = _percentage;
-			if( _ringID == RING_ID_ALL ) {
-				DevStatusRowPtr->data.ring[1].State = _st;
-				DevStatusRowPtr->data.ring[1].BR = _percentage;
-				DevStatusRowPtr->data.ring[2].State = _st;
-				DevStatusRowPtr->data.ring[2].BR = _percentage;
-			}
-			DevStatusRowPtr->data.run_flag = EXECUTED;
-			DevStatusRowPtr->data.flash_flag = UNSAVED;
-			DevStatusRowPtr->data.op_flag = POST;
-			theConfig.SetDSTChanged(true);
 
-			if( IS_CURRENT_DEVICE(_nodeID) ) {
-				if( r_index == 0 ) {
-					// Set panel ring to new position
-					thePanel.UpdateDimmerValue(_percentage);
-					// Set panel ring off
-					thePanel.SetRingOnOff(_st);
-				}
-			}
+	theConfig.SetDSTChanged(true);
 
-			// Publish device status event
-			String strTemp;
-			if( _ringID != RING_ID_ALL ) {
-				strTemp = String::format("{'nd':%d,'Ring':%d,'State':%d,'BR':%d}",
-					_nodeID, _ringID, _st, _percentage);
-			} else {
-			 	strTemp = String::format("{'nd':%d,'State':%d,'BR':%d}",
-					_nodeID, _st, _percentage);
-			}
-			PublishDeviceStatus(strTemp.c_str());
-			rc = true;
+	if( IS_CURRENT_DEVICE(_nodeID) ) {
+		if( r_index == 0 ) {
+			// Set panel ring to new position
+			thePanel.UpdateDimmerValue(_percentage);
+			// Set panel ring off
+			thePanel.SetOnOff(_st);
 		}
 	}
+
+	// Publish device status event
+	String strTemp;
+	if( _ringID != RING_ID_ALL ) {
+		strTemp = String::format("{'nd':%d,'Ring':%d,'State':%d,'BR':%d}",
+			_nodeID, _ringID, _st, _percentage);
+	} else {
+		strTemp = String::format("{'nd':%d,'State':%d,'BR':%d}",
+			_nodeID, _st, _percentage);
+	}
+	PublishDeviceStatus(strTemp.c_str());
+	rc = true;
+
 	return rc;
 }
 
@@ -2697,41 +2625,25 @@ BOOL SmartControllerClass::ConfirmLampCCT(UC _nodeID, US _cct, UC _ringID)
 {
 	BOOL rc = false;
 	UC r_index = (_ringID == RING_ID_ALL ? 0 : _ringID - 1);
-	//m_pMainDev->data.ring[0].CCT = _cct;
-	ListNode<DevStatusRow_t> *DevStatusRowPtr = SearchDevStatus(_nodeID);
-	if (DevStatusRowPtr) {
-		ConfirmLampPresent(DevStatusRowPtr, true);
-		if( DevStatusRowPtr->data.ring[r_index].CCT != _cct ) {
-			DevStatusRowPtr->data.present = 1;
-			DevStatusRowPtr->data.ring[r_index].CCT = _cct;
-			if( _ringID == RING_ID_ALL ) {
-				DevStatusRowPtr->data.ring[1].CCT = _cct;
-				DevStatusRowPtr->data.ring[2].CCT = _cct;
-			}
-			DevStatusRowPtr->data.run_flag = EXECUTED;
-			DevStatusRowPtr->data.flash_flag = UNSAVED;
-			DevStatusRowPtr->data.op_flag = POST;
-			theConfig.SetDSTChanged(true);
 
-			if( IS_CURRENT_DEVICE(_nodeID) ) {
-				if( r_index == 0 ) {
-					// Update cooresponding panel CCT value
-					thePanel.UpdateCCTValue(_cct);
-					thePanel.SetRingOnOff(DevStatusRowPtr->data.ring[0].State);
-				}
-			}
-
-			// Publish device status event
-			String strTemp;
-			if( _ringID != RING_ID_ALL ) {
-				strTemp = String::format("{'nd':%d,'Ring':%d,'CCT':%d}", _nodeID, _ringID, _cct);
-			} else {
-			 	strTemp = String::format("{'nd':%d,'CCT':%d}", _nodeID, _cct);
-			}
-			PublishDeviceStatus(strTemp.c_str());
-			rc = true;
+	if( IS_CURRENT_DEVICE(_nodeID) ) {
+		if( r_index == 0 ) {
+			// Update cooresponding panel CCT value
+			thePanel.UpdateCCTValue(_cct);
+			//TODO
+			//thePanel.SetOnOff(DevStatusRowPtr->data.ring[0].State);
 		}
 	}
+
+	// Publish device status event
+	String strTemp;
+	if( _ringID != RING_ID_ALL ) {
+		strTemp = String::format("{'nd':%d,'Ring':%d,'CCT':%d}", _nodeID, _ringID, _cct);
+	} else {
+		strTemp = String::format("{'nd':%d,'CCT':%d}", _nodeID, _cct);
+	}
+	PublishDeviceStatus(strTemp.c_str());
+	rc = true;
 	return rc;
 }
 

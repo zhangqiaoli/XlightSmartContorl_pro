@@ -395,11 +395,11 @@ uint8_t CC1100::rx_payload_burst(uint8_t rxbuffer[], uint8_t &pktlen)
 //-------------------------------[end]------------------------------------------
 
 //---------------------------[sent packet]--------------------------------------
-uint8_t CC1100::sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer,
-                            uint8_t pktlen,  uint8_t tx_retries)
+uint8_t CC1100::sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer,uint8_t *rxbuffer,
+                            uint8_t pktlen, uint8_t& reslen, uint8_t tx_retries)
 {
     uint8_t pktlen_ack;                                         //default package len for ACK
-    uint8_t rxbuffer[FIFOBUFFER];
+    uint8_t recvbuffer[FIFOBUFFER];
     uint8_t tx_retries_count = 0;
     uint8_t from_sender;
     uint16_t ackWaitCounter = 0;
@@ -426,10 +426,23 @@ uint8_t CC1100::sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer,
             {
                 Serial.printf("recv data\n");
                 from_sender = rx_addr;                          //the original message sender address
-                rx_fifo_erase(rxbuffer);                        //erase RX software buffer
-                rx_payload_burst(rxbuffer, pktlen_ack);         //reads package in buffer
-                check_acknolage(rxbuffer, pktlen_ack, from_sender, my_addr); //check if received message is an acknowledge from client
-                return TRUE;                                    //package successfully sent
+                rx_fifo_erase(recvbuffer);                        //erase RX software buffer
+                rx_payload_burst(recvbuffer, pktlen_ack);         //reads package in buffer
+                if(debug_level > 0){
+                  Serial.printf("RX_FIFO:");
+                  for(uint8_t i = 0 ; i < pktlen_ack + 1; i++)   //showes rx_buffer for debug
+                  {
+                      uart_puthex_byte(recvbuffer[i]);
+                  }
+                }
+                if(check_acknolage(recvbuffer, pktlen_ack, from_sender, my_addr)){ //check if received message is an acknowledge from client
+                  memcpy(rxbuffer,recvbuffer+3,pktlen_ack-2);
+				          reslen = pktlen_ack-2;
+                  return TRUE;
+                }
+                else{
+                  return FALSE;
+                }
             }
             else{
                 ackWaitCounter++;                               //increment ACK wait counter
@@ -489,7 +502,7 @@ uint8_t CC1100::packet_available()
 }
 //-------------------------------[end]------------------------------------------
 
-//------------------[check Payload for ACK or Data]-----------------------------
+//------------------[check Payload for Data]-----------------------------
 uint8_t CC1100::get_payload(uint8_t rxbuffer[], uint8_t &pktlen, uint8_t &my_addr,
                                uint8_t &sender, int8_t &rssi_dbm, uint8_t &lqi)
 {
@@ -506,53 +519,36 @@ uint8_t CC1100::get_payload(uint8_t rxbuffer[], uint8_t &pktlen, uint8_t &my_add
     {
         my_addr = rxbuffer[1];                             //set receiver address to my_addr
         sender = rxbuffer[2];
+        pktlen = rxbuffer[0];
+        rssi_dbm = rssi_convert(rxbuffer[pktlen + 1]); //converts receiver strength to dBm
+        lqi = lqi_convert(rxbuffer[pktlen + 2]);       //get rf quialtiy indicator
+        crc = check_crc(lqi);                          //get packet CRC
 
-        if(check_acknolage(rxbuffer, pktlen, sender, my_addr) == TRUE) //acknowlage received?
-        {
-            rx_fifo_erase(rxbuffer);                       //delete rx_fifo bufffer
-            return FALSE;                                //Ack received -> finished
-        }
-        else                                               //real data, and sent acknowladge
-        {
-            rssi_dbm = rssi_convert(rxbuffer[pktlen + 1]); //converts receiver strength to dBm
-            lqi = lqi_convert(rxbuffer[pktlen + 2]);       //get rf quialtiy indicator
-            crc = check_crc(lqi);                          //get packet CRC
-
-            if(debug_level > 0){                           //debug output messages
-                if(rxbuffer[1] == BROADCAST_ADDRESS)       //if my receiver address is BROADCAST_ADDRESS
-                {
-                    Serial.println(F("BROADCAST message"));
-                }
-
-                Serial.print(F("RX_FIFO:"));
-                for(uint8_t i = 0 ; i < pktlen + 1; i++)   //showes rx_buffer for debug
-                {
-                    uart_puthex_byte(rxbuffer[i]);
-                }
-                Serial.print(" |");
-                uart_puthex_byte(rxbuffer[pktlen+1]);
-                uart_puthex_byte(rxbuffer[pktlen+2]);
-                Serial.print("|");
-                Serial.println();
-
-                Serial.print(F("RSSI:"));uart_puti(rssi_dbm);Serial.print(F(" "));
-                Serial.print(F("LQI:"));uart_puthex_byte(lqi);Serial.print(F(" "));
-                Serial.print(F("CRC:"));uart_puthex_byte(crc);
-                Serial.println();
-            }
-
-            my_addr = rxbuffer[1];                         //set receiver address to my_addr
-            sender = rxbuffer[2];                          //set from_sender address
-
-            if(my_addr != BROADCAST_ADDRESS)               //send only ack if no BROADCAST_ADDRESS
+        if(debug_level > 0){                           //debug output messages
+            if(rxbuffer[1] == BROADCAST_ADDRESS)       //if my receiver address is BROADCAST_ADDRESS
             {
-                sent_acknolage(my_addr, sender);           //sending acknolage to sender!
+                Serial.println(F("BROADCAST message"));
             }
 
-            return TRUE;
+            Serial.printf("RX_FIFO:",pktlen);
+            for(uint8_t i = 0 ; i < pktlen + 1; i++)   //showes rx_buffer for debug
+            {
+                uart_puthex_byte(rxbuffer[i]);
+            }
+            Serial.print(" |");
+            uart_puthex_byte(rxbuffer[pktlen+1]);
+            uart_puthex_byte(rxbuffer[pktlen+2]);
+            Serial.print("|");
+            Serial.println();
+
+            Serial.print(F("RSSI:"));uart_puti(rssi_dbm);Serial.print(F(" "));
+            Serial.print(F("LQI:"));uart_puthex_byte(lqi);Serial.print(F(" "));
+            Serial.print(F("CRC:"));uart_puthex_byte(crc);
+            Serial.println();
         }
-        return FALSE;
+        return TRUE;
     }
+    return FALSE;
 }
 //-------------------------------[end]------------------------------------------
 
@@ -562,8 +558,7 @@ uint8_t CC1100::check_acknolage(uint8_t *rxbuffer, uint8_t pktlen, uint8_t sende
     int8_t rssi_dbm;
     uint8_t crc, lqi;
     Serial.println(F("RECV ACK"));
-    if((pktlen == 0x05 && \
-       (rxbuffer[1] == my_addr || rxbuffer[1] == BROADCAST_ADDRESS)) && \
+    if((rxbuffer[1] == my_addr || rxbuffer[1] == BROADCAST_ADDRESS) && \
         rxbuffer[2] == sender/* && \
         rxbuffer[3] == 'A' && rxbuffer[4] == 'c' && rxbuffer[5] == 'k'*/) //acknolage received!
         {

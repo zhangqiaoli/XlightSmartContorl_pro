@@ -28,6 +28,7 @@
 // This is the nodeId for sensor net gateway receiver sketch (where all sensors should send their data).
 #define GATEWAY_ADDRESS ((uint8_t)0)
 #define BROADCAST_ADDRESS ((uint8_t)0xFF)
+#define BROADCAST_ADDRESS1 ((uint8_t)0x00)
 #define BASESERVICE_ADDRESS ((uint8_t)0xFE)
 
 class MyTransport
@@ -50,7 +51,7 @@ public:
 	// send(to, data, len)
 	// reliable transmission of the data with given length (in bytes) to the destination address
 	// returns true if successfully submitted
-	virtual bool send(uint8_t to, const void* data, uint8_t len) = 0;
+	virtual bool send(uint8_t to, const void* data,uint8_t len,uint8_t *rxdata,uint8_t& reslen) = 0;
 	// available(to)
 	// returns true if a new packet arrived in the rx buffer
 	// populates "to" parameter with the address the packet was sent to (either own address or broadcast)

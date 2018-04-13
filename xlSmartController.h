@@ -65,7 +65,6 @@ public:
   void ProcessCommands();
   void ProcessCloudCommands();
   //bool ExecuteLightCommand(String mySerialStr);
-  bool ProcessPanel();
 
   // Device Control Functions
   int DeviceSwitch(UC sw, UC hwsw = 2, UC dev = 0, const UC subID = 0);

@@ -266,6 +266,33 @@ bool RF433ServerClass::ProcessSend(const UC _node, const UC _msgID, String &strP
 		bMsgReady = true;
 		SERIAL("Now setting special effect %d...", bytValue);
 		break;
+	case 20:
+		// Set base config to node
+		lv_msg.build(_replyTo, _node, _sensor, C_INTERNAL, I_CONFIG, true);
+		payload[0] = 101;  //maindev
+		payload[1] = CC1101_433_CHANNEL;
+		payload[2] = 101;
+		payload[3] = 0;
+		nPos = strPayl.indexOf(':');
+		Serial.printlnf("msg=%s,pos=%d...",strPayl.c_str(),nPos);
+		if (nPos > 0) {
+			// Extract brightness, cct or WRGB
+			bytValue = (uint8_t)(strPayl.substring(0, nPos).toInt());
+			payload[0] = bytValue;
+			payload[2] = bytValue;
+			iValue = strPayl.substring(nPos + 1).toInt();
+			payload[1] = iValue;
+		}
+		else
+		{
+			bytValue = (uint8_t)(strPayl.toInt());
+			payload[0] = bytValue;
+			payload[2] = bytValue;
+		}
+		lv_msg.set((void*)payload, 4);
+		SERIAL("Now sending set nodeid=%d channel=%d...", payload[0], payload[1]);
+		bMsgReady = true;
+		break;
 	}
 
 	if (bMsgReady) {
@@ -413,15 +440,139 @@ bool RF433ServerClass::ProcessReceiveMQ()
 		_needAck = msg.isReqAck();
 		payload = (uint8_t *)msg.getCustom();
 
-		/*
-	  memset(strDisplay, 0x00, sizeof(strDisplay));
-	  msg.getJsonString(strDisplay);
-	  SERIAL_LN("  JSON: %s, len: %d", strDisplay, strlen(strDisplay));
-	  memset(strDisplay, 0x00, sizeof(strDisplay));
-	  SERIAL_LN("  Serial: %s, len: %d", msg.getSerialString(strDisplay), strlen(strDisplay));
-		*/
 		LOGD(LOGTAG_MSG, "Will process cmd:%d from:%d type:%d sensor:%d",
 					msg.getCommand(), replyTo, msgType, _sensor);
+		switch( msg.getCommand() )
+	  {
+	    case C_INTERNAL:
+	      if( msgType == I_ID_REQUEST ) {
+				}
+				break;
+			case C_REQ:
+				if( msgType == V_STATUS || msgType == V_PERCENTAGE || msgType == V_LEVEL
+						|| msgType == V_RGBW || msgType == V_DISTANCE || msgType == V_VAR1
+						|| msgType == V_RELAY_ON || msgType == V_RELAY_OFF || msgType == V_RELAY_MAP ) {
+					//transTo = (msg.getDestination() == getAddress() ? _sensor : msg.getDestination());
+					transTo = msg.getDestination();
+					BOOL bDataChanged = false;
+					if( _bIsAck ) {
+						//SERIAL_LN("REQ ack:%d to: %d 0x%x-0x%x-0x%x-0x%x-0x%x-0x%x-0x%x", msgType, transTo, payload[0],payload[1], payload[2], payload[3], payload[4],payload[5],payload[6]);
+						if( msgType == V_STATUS ||  msgType == V_PERCENTAGE ) {
+							if( IS_SPECIAL_NODEID(replyTo) ) {
+								// Publish Special Node Status
+								if( msgType == V_STATUS ) {
+									strTemp = String::format("{'nd':%d,'State':%d}", replyTo, payload[0]);
+								} else {
+									strTemp = String::format("{'nd':%d,'State':%d,'BR':%d}", replyTo, payload[0], payload[1]);
+								}
+								theSys.PublishDeviceStatus(strTemp.c_str());
+								bDataChanged = true;
+							} else {
+								bDataChanged |= theSys.ConfirmLampBrightness(replyTo, payload[0], payload[1]);
+							}
+						} else if( msgType == V_LEVEL ) {
+							bDataChanged |= theSys.ConfirmLampCCT(replyTo, (US)msg.getUInt());
+						} else if( msgType == V_RGBW ) {
+							if( payload[0] ) {	// Succeed or not
+								static bool bFirstRGBW = true;		// Make sure the first message will be sent anyway
+								UC _devType = payload[1];	// payload[2] is present status
+								UC _ringID = payload[3];
+								if( IS_SUNNY(_devType) ) {
+									// Sunny
+									US _CCTValue = payload[7] * 256 + payload[6];
+									bDataChanged |= theSys.ConfirmLampCCT(replyTo, _CCTValue, _ringID);
+									bDataChanged |= theSys.ConfirmLampBrightness(replyTo, payload[4], payload[5], _ringID);
+									bDataChanged |= bFirstRGBW;
+									bFirstRGBW = false;
+								} else if( IS_RAINBOW(_devType) || IS_MIRAGE(_devType) ) {
+									// Rainbow or Mirage, set RBGW
+									bDataChanged |= theSys.ConfirmLampHue(replyTo, payload[6], payload[7], payload[8], payload[9], _ringID);
+									bDataChanged |= theSys.ConfirmLampBrightness(replyTo, payload[4], payload[5], _ringID);
+									bDataChanged |= bFirstRGBW;
+									bFirstRGBW = false;
+								}
+							}
+						} else if( msgType == V_VAR1 ) { // Change special effect ack
+							bDataChanged |= theSys.ConfirmLampFilter(replyTo, payload[0]);
+						} else if( msgType == V_DISTANCE && payload[0] ) {
+							UC _devType = payload[1];	// payload[2] is present status
+							if( IS_MIRAGE(_devType) ) {
+								bDataChanged |= theSys.ConfirmLampTop(replyTo, payload, payl_len);
+							}
+						} else if( msgType == V_RELAY_ON || msgType == V_RELAY_OFF ) {
+							// Publish Relay Status
+							strTemp = String::format("{'nd':%d,'k_%s':'%c'}", replyTo, msgType == V_RELAY_ON ? "on" : "off", payload[0]);
+							theSys.PublishDeviceStatus(strTemp.c_str());
+							//bDataChanged = true;
+						} else if( msgType == V_RELAY_MAP ) {
+							// Publish Relay Status
+							strTemp = String::format("{'nd':%d,'subid':%d,'km':%d}", replyTo, _sensor,payload[0]);
+							theSys.PublishDeviceStatus(strTemp.c_str());
+							//bDataChanged = true;
+						}
+
+						// If data changed, new status must broadcast to all end points
+						if( bDataChanged ) {
+							transTo = BROADCAST_ADDRESS;
+						}
+					} /* else { // Request
+						// ToDo: verify token
+					} */
+
+					// ToDo: if lamp is not present, return error
+					if( transTo > 0 ) {
+						// Transfer message
+						msg.build(replyTo, transTo, _sensor, C_REQ, msgType, _needAck, _bIsAck, true);
+						// Keep payload unchanged
+						msgReady = true;
+					}
+				}
+				break;
+
+			case C_SET:
+				// ToDo: verify token
+				// ToDo: if lamp is not present, return error
+				transTo = msg.getDestination();
+        if( transTo == NODEID_KEYSIMULATOR ) {
+					// Transfer message to Key Simuluator, use _sensor to identify subID
+					msg.build(replyTo, transTo, _sensor, C_SET, msgType, _needAck, _bIsAck, true);
+					// Keep payload unchanged
+					msgReady = true;
+				} else {
+					//transTo = (msg.getDestination() == getAddress() ? _sensor : msg.getDestination());
+					if( transTo > 0 ) {
+						bool lv_skip = false;
+						// Remote turns on or set scene: make sure hardswitch is on
+						if( msgType == V_STATUS ) { //&& !IS_NOT_REMOTE_NODEID(replyTo) ) {
+							if( theConfig.GetHardwareSwitch() ) {
+								_bValue = payload[0];
+								if( _bValue == DEVICE_SW_TOGGLE ) _bValue = 1 - theSys.GetDevOnOff(transTo);
+								if( _bValue == DEVICE_SW_OFF ) {
+									lv_skip = theSys.DeviceSwitch(DEVICE_SW_OFF, 1, transTo, _sensor);
+								} else {
+									lv_skip = theSys.DevSoftSwitch(DEVICE_SW_ON, transTo, _sensor);
+									if( lv_skip ) theSys.HardConfirmOnOff(transTo, _sensor, DEVICE_SW_ON);
+								}
+							} else {
+								theSys.MakeSureHardSwitchOn(transTo, _sensor);
+							}
+						}
+
+						if( msgType == V_SCENE_ON ) {
+							theSys.ChangeLampScenario(transTo, payload[0], replyTo, _sensor);
+						}	else if(!lv_skip) {
+							// Transfer message
+							msg.build(replyTo, transTo, _sensor, C_SET, msgType, _needAck, _bIsAck, true);
+							// Keep payload unchanged
+							msgReady = true;
+						}
+					}
+				}
+				break;
+
+	    default:
+	      break;
+	  }
   }
   return true;
 }
@@ -430,13 +581,14 @@ bool RF433ServerClass::ProcessReceiveMQ()
 bool RF433ServerClass::ProcessSendMQ()
 {
 	MyMessage lv_msg;
+	MyMessage resmsg;
+	uint8_t reslen = 0;
 	UC *pData = (UC *)&(lv_msg.msg);
 	CFastMessageNode *pNode = NULL, *pOld;
 	UC _repeat;
 	UC _tag = 0;
 	uint32_t _flag = 0;
 	bool _remove = false;
-
 	if( GetMQLength() > 0 ) {
 		while( pNode = GetMessage(pNode) ) {
 			pOld = pNode;
@@ -455,19 +607,24 @@ bool RF433ServerClass::ProcessSendMQ()
 				}
 
 				// Send message
-				_remove = send(lv_msg.getDestination(), lv_msg);
+				_remove = send(lv_msg.getDestination(), lv_msg,resmsg,reslen);
 				LOGD(LOGTAG_MSG, "RF-send msg %d-%d tag %d to %d tried %d %s", lv_msg.getCommand(), lv_msg.getType(), _tag, lv_msg.getDestination(), _repeat, _remove ? "OK" : "Failed");
-
-				// Determine whether requires retry
-				// TODO
-				/*if( lv_msg.getDestination() == BROADCAST_ADDRESS || IS_GROUP_NODEID(lv_msg.getDestination()) ) {
-					if( _remove && _repeat == 1 ) _succ++;
-					_remove = (_repeat > theConfig.GetBcMsgRptTimes());
-				} else {
-					if( _remove ) _succ++;
+				if( lv_msg.getDestination() == BROADCAST_ADDRESS || lv_msg.getDestination() == BROADCAST_ADDRESS1)
+				{
+          _remove = (_repeat > theConfig.GetBcMsgRptTimes());
+				}
+				else
+				{
+					if(reslen > 0)
+					{
+						LOGD(LOGTAG_MSG, "Receive real-time msg len=%d sender:%d dest:%d cmd:%d type:%d sensor:%d payl-len:%d",
+							 reslen,resmsg.getSender(), resmsg.getDestination(), resmsg.getCommand(),
+							 resmsg.getType(), resmsg.getSensor(), resmsg.getLength());
+						uint8_t *lv_pData = (uint8_t *)&(resmsg.msg);
+						Append(lv_pData, reslen);
+					}
 					if( _repeat > theConfig.GetNdMsgRptTimes() ) 	_remove = true;
-				}*/
-
+				}
 				// Remove message if succeeded or retried enough times
 				if( _remove ) {
 					RemoveMessage(pOld);
