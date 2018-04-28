@@ -25,7 +25,7 @@
 #include "xliCommon.h"
 
 #define PROTOCOL_VERSION 1
-#define MAX_MESSAGE_LENGTH 32
+#define MAX_MESSAGE_LENGTH 27
 #define HEADER_SIZE 7
 #define MAX_PAYLOAD (MAX_MESSAGE_LENGTH - HEADER_SIZE)
 

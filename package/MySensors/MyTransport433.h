@@ -35,8 +35,8 @@ public:
 	bool init(uint8_t channel,uint8_t address);
 	void setAddress(uint8_t address);
 	uint8_t getAddress();
-	bool send(uint8_t to, const void* data,uint8_t len,uint8_t *rxdata,uint8_t& reslen);
-	bool send(uint8_t to, MyMessage &message, MyMessage &recvmessage,uint8_t& reslen);
+	bool send(uint8_t to, const void* data,uint8_t len);
+	bool send(uint8_t to, MyMessage &message);
 	bool available();
 	uint8_t receive(void* data,uint8_t *from,uint8_t *to);
 	void powerDown();

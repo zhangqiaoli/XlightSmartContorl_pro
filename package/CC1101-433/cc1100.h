@@ -18,7 +18,7 @@
 #define FIFOBUFFER                0x42  //size of Fifo Buffer
 #define RSSI_OFFSET_868MHZ        0x4E  //dec = 74
 #define TX_RETRIES_MAX            0x05  //tx_retries_max
-#define ACK_TIMEOUT                200  //ACK timeout in ms
+#define ACK_TIMEOUT                600  //ACK timeout in ms
 #define CC1100_COMPARE_REGISTER   0x00  //register compare 0=no compare 1=compare
 #define BROADCAST_ADDRESS         0x00  //broadcast address
 #define BROADCAST_ADDRESS1        0xFF  //broadcast address
@@ -181,7 +181,7 @@ class CC1100
         void rx_fifo_erase(uint8_t *rxbuffer);
         void tx_fifo_erase(uint8_t *txbuffer);
 
-        uint8_t sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer, uint8_t *rxbuffer, uint8_t pktlen, uint8_t& reslen, uint8_t tx_retries);
+        uint8_t sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer, uint8_t pktlen);
         void sent_acknolage(uint8_t my_addr, uint8_t tx_addr);
 
         uint8_t check_acknolage(uint8_t *rxbuffer, uint8_t pktlen, uint8_t sender, uint8_t my_addr);

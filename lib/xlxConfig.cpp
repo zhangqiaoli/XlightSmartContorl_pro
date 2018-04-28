@@ -532,6 +532,7 @@ BOOL ConfigClass::LoadConfig()
 
 BOOL ConfigClass::SaveConfig()
 {
+	noInterrupts();
 	// Check changes on Panel
 	SetBrightIndicator(thePanel.GetDimmerValue());
 
@@ -569,7 +570,7 @@ BOOL ConfigClass::SaveConfig()
 
 	// Save NodeID List
 	SaveNodeIDList();
-
+  interrupts();
   return true;
 }
 

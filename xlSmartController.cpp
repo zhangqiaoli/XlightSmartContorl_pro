@@ -133,7 +133,7 @@ void SmartControllerClass::InitRadio()
   if (m_isRF)
   {
     LOGN(LOGTAG_MSG, "RF is working.");
-    SetStatus(STATUS_BMW);
+    //SetStatus(STATUS_BMW);
   }
   else
   {
@@ -513,7 +513,7 @@ BOOL SmartControllerClass::IsWANGood()
 void SmartControllerClass::ProcessLocalCommands() {
 	// Check RF Message
 	//SERIAL_LN("PeekMessage...");
-	theRadio.PeekMessage();
+	//theRadio.PeekMessage();
 	//SERIAL_LN("PeekMessage end");
 
 	// Process RF2.4 messages

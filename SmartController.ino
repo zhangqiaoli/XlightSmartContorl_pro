@@ -84,10 +84,11 @@ void setup()
 	WiFi.listen(false);
   // System Initialization
   theSys.Init();
-	// Load Configuration
-  theConfig.LoadConfig();
 	// Initialization Radio Interfaces
 	theSys.InitRadio();
+	noInterrupts();
+	// Load Configuration
+  theConfig.LoadConfig();
 
 	// Open Wi-Fi
 	if( theConfig.GetDisableWiFi() ) {
@@ -150,10 +151,9 @@ void setup()
 		}
 	}
 
-
   // System Starts
   theSys.Start();
-
+  interrupts();
 	// Setp WD and reset the application if no reponds
 	ApplicationWatchdog wd(RTE_WATCHDOG_TIMEOUT, System.reset, 256);
 }

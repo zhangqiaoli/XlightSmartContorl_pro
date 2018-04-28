@@ -56,6 +56,8 @@ RF433ServerClass::RF433ServerClass()
 	, CDataQueue(MAX_MESSAGE_LENGTH * MQ_MAX_RF_RCVMSG)
 	, CFastMessageQ(MQ_MAX_RF_SNDMSG, MAX_MESSAGE_LENGTH)
 {
+	_sentID = 0;
+	_ackWaitTick = 0;
 	_times = 0;
 	_succ = 0;
 	_received = 0;
@@ -68,7 +70,15 @@ bool RF433ServerClass::ServerBegin(uint8_t channel,uint8_t address)
     LOGC(LOGTAG_MSG, "RF433 module is not valid!");
 		return false;
 	}
+	EnableRFIRQ();
   return true;
+}
+
+bool RF433ServerClass::EnableRFIRQ()
+{
+	// enable 433 rx/tx interrupt
+	attachInterrupt(GDO2, &RF433ServerClass::PeekMessage, this,FALLING);
+	return true;
 }
 
 bool RF433ServerClass::ProcessMQ()
@@ -385,35 +395,45 @@ bool RF433ServerClass::ProcessSend(MyMessage *pMsg)
 	return false;
 }
 
-// Get messages from RF buffer and store them in MQ
-bool RF433ServerClass::PeekMessage()
+// receive data from RF buffer and store them in MQ
+void RF433ServerClass::PeekMessage()
 {
-	if( !isValid() ) return false;
-
+	if( !isValid() ) return;
+	//detachInterrupt(GDO2);
 	uint8_t from,to = 0;
 	uint8_t len;
 	MyMessage lv_msg;
 	uint8_t *lv_pData = (uint8_t *)&(lv_msg.msg);
-	while(available()){
+	if(available()){
 		  len = receive(lv_pData,&from,&to);
-			// rough check
-			if( len < HEADER_SIZE )
-			{
-				LOGW(LOGTAG_MSG, "got corrupt dynamic payload!");
-				return false;
-			} else if( len > MAX_MESSAGE_LENGTH )
-			{
-				LOGW(LOGTAG_MSG, "message length exceeded: %d", len);
-				return false;
+			if(len > 0)
+	    {
+				// rough check
+				if( len < HEADER_SIZE )
+				{
+					//LOGW(LOGTAG_MSG, "got corrupt dynamic payload!");
+				} else if( len > MAX_MESSAGE_LENGTH )
+				{
+					//LOGW(LOGTAG_MSG, "message length exceeded: %d", len);
+				}
+				_received++;
+				LOGD(LOGTAG_MSG, "Received isack:%d,msg-len=%d, from:%d to:%d sender:%d dest:%d cmd:%d type:%d sensor:%d payl-len:%d",
+				lv_msg.isAck(),len, from, to, lv_msg.getSender(), lv_msg.getDestination(), lv_msg.getCommand(),
+				lv_msg.getType(), lv_msg.getSensor(), lv_msg.getLength());
+				if(lv_msg.isAck())
+				{
+					unsigned long ackid = lv_msg.getSender();
+					if(_sentID !=0 && ackid == _sentID)
+					{
+						_sentID = 0;
+					}
+				}
+				Append(lv_pData, len);
 			}
-			_received++;
-			LOGD(LOGTAG_MSG, "Received msg-len=%d, from:%d to:%d sender:%d dest:%d cmd:%d type:%d sensor:%d payl-len:%d",
-			len, from, to, lv_msg.getSender(), lv_msg.getDestination(), lv_msg.getCommand(),
-			lv_msg.getType(), lv_msg.getSensor(), lv_msg.getLength());
-			if( Append(lv_pData, len) <= 0 ) return false;
 	}
-	return true;
+	//attachInterrupt(GDO2, &RF433ServerClass::PeekMessage, this, FALLING);
 }
+
 // TODO
 // Parse and process message in MQ
 bool RF433ServerClass::ProcessReceiveMQ()
@@ -455,7 +475,7 @@ bool RF433ServerClass::ProcessReceiveMQ()
 					//transTo = (msg.getDestination() == getAddress() ? _sensor : msg.getDestination());
 					transTo = msg.getDestination();
 					BOOL bDataChanged = false;
-					if( _bIsAck ) {
+					/*if( _bIsAck )*/ {
 						//SERIAL_LN("REQ ack:%d to: %d 0x%x-0x%x-0x%x-0x%x-0x%x-0x%x-0x%x", msgType, transTo, payload[0],payload[1], payload[2], payload[3], payload[4],payload[5],payload[6]);
 						if( msgType == V_STATUS ||  msgType == V_PERCENTAGE ) {
 							if( IS_SPECIAL_NODEID(replyTo) ) {
@@ -597,25 +617,43 @@ bool RF433ServerClass::ProcessSendMQ()
 			// Get message data
 			if( pOld->ReadMessage(pData, &_repeat, &_tag, &_flag,15) > 0 )
 			{
-				// Determine pipe
-				if( lv_msg.getCommand() == C_INTERNAL && lv_msg.getType() == I_ID_RESPONSE && lv_msg.isAck() ) {
-					//pipe = CURRENT_NODE_PIPE;
-				} else if(lv_msg.getType() == I_GET_NONCE_RESPONSE && lv_msg.getDestination() == NODEID_RF_SCANNER)	{
-					//pipe = CURRENT_NODE_PIPE;
-				} else {
-					//pipe = PRIVATE_NET_PIPE;
-				}
-
 				// Send message
-				_remove = send(lv_msg.getDestination(), lv_msg,resmsg,reslen);
-				LOGD(LOGTAG_MSG, "RF-send msg %d-%d tag %d to %d tried %d %s", lv_msg.getCommand(), lv_msg.getType(), _tag, lv_msg.getDestination(), _repeat, _remove ? "OK" : "Failed");
+				detachInterrupt(GDO2);
+				_remove = send(lv_msg.getDestination(), lv_msg);
+				attachInterrupt(GDO2, &RF433ServerClass::PeekMessage, this, FALLING);
+	      _sentID = lv_msg.getDestination();
+				LOGD(LOGTAG_MSG, "RF-send msg %d-%d tag %d to %d tried %d id=%d", lv_msg.getCommand(), lv_msg.getType(), _tag, lv_msg.getDestination(), _repeat,_sentID);
 				if( lv_msg.getDestination() == BROADCAST_ADDRESS || lv_msg.getDestination() == BROADCAST_ADDRESS1)
 				{
           _remove = (_repeat > theConfig.GetBcMsgRptTimes());
 				}
 				else
 				{
-					if(reslen > 0)
+					if(lv_msg.getCommand() == C_INTERNAL && lv_msg.getType() == I_CONFIG)
+					{
+						_remove = (_repeat > theConfig.GetNdMsgRptTimes());
+					}
+					else
+					{
+						_remove = false;
+						// wait for ack
+						while(_ackWaitTick < ACK_TIMEOUT)
+						{
+							if(_sentID != 0)
+							{// wait for ack
+								_ackWaitTick++;                               //increment ACK wait counter
+								delay(1);
+							}
+							else
+							{
+								_remove = true;
+								break;
+							}
+						}
+						_ackWaitTick = 0;
+						if( !_remove && _repeat > theConfig.GetNdMsgRptTimes() ) 	_remove = true;
+					}
+					/*if(reslen > 0)
 					{
 						LOGD(LOGTAG_MSG, "Receive real-time msg len=%d sender:%d dest:%d cmd:%d type:%d sensor:%d payl-len:%d",
 							 reslen,resmsg.getSender(), resmsg.getDestination(), resmsg.getCommand(),
@@ -623,7 +661,7 @@ bool RF433ServerClass::ProcessSendMQ()
 						uint8_t *lv_pData = (uint8_t *)&(resmsg.msg);
 						Append(lv_pData, reslen);
 					}
-					if( _repeat > theConfig.GetNdMsgRptTimes() ) 	_remove = true;
+					if( _repeat > theConfig.GetNdMsgRptTimes() ) 	_remove = true;*/
 				}
 				// Remove message if succeeded or retried enough times
 				if( _remove ) {

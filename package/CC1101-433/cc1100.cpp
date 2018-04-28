@@ -12,10 +12,10 @@
 #include "cc1100.h"
 
 static uint8_t cc1100_GFSK_2_kb[] = {
-                    0x07,  // @IOCFG2        GDO2 Output Pin Configuration
+                    0x06,  // @IOCFG2        GDO2 Output Pin Configuration
                     0x2E,  // IOCFG1        GDO1 Output Pin Configuration
                     0x80,  // @IOCFG0        GDO0 Output Pin Configuration
-                    0x47,  // FIFOTHR       RX FIFO and TX FIFO Thresholds
+                    0x4F,  // FIFOTHR       RX FIFO and TX FIFO Thresholds
                     0x87,  // @SYNC1         Sync Word, High Byte
                     0x99,  // @SYNC0         Sync Word, Low Byte
                     0xFF,  // @PKTLEN        Packet Length
@@ -180,7 +180,7 @@ uint8_t CC1100::begin()
         Serial.println(F("...done"));
     }
 
-    receive();                            //set CC1100 in receive mode
+    sidle();                            //set CC1100 in receive mode
 
     return TRUE;
 }
@@ -283,7 +283,7 @@ uint8_t CC1100::receive(void)
         marcstate = (spi_read_register(MARCSTATE) & 0x1F); //read out state of cc1100 to be sure in RX
         //uart_puthex_byte(marcstate);
     }
-    //Serial.println();
+    Serial.println("set to rx");
     delayMicroseconds(100);
     return TRUE;
 }
@@ -371,7 +371,7 @@ uint8_t CC1100::rx_payload_burst(uint8_t rxbuffer[], uint8_t &pktlen)
     uint8_t res = 0;
 
     bytes_in_RXFIFO = spi_read_register(RXBYTES);              //reads the number of bytes in RXFIFO
-
+    Serial.printlnf("bytes in rx %d ",bytes_in_RXFIFO);
     if((bytes_in_RXFIFO & 0x7F) && !(bytes_in_RXFIFO & 0x80))  //if bytes in buffer and no RX Overflow
     {
         spi_read_burst(RXFIFO_BURST, rxbuffer, bytes_in_RXFIFO);
@@ -395,8 +395,8 @@ uint8_t CC1100::rx_payload_burst(uint8_t rxbuffer[], uint8_t &pktlen)
 //-------------------------------[end]------------------------------------------
 
 //---------------------------[sent packet]--------------------------------------
-uint8_t CC1100::sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer,uint8_t *rxbuffer,
-                            uint8_t pktlen, uint8_t& reslen, uint8_t tx_retries)
+uint8_t CC1100::sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer,
+                            uint8_t pktlen)
 {
     uint8_t pktlen_ack;                                         //default package len for ACK
     uint8_t recvbuffer[FIFOBUFFER];
@@ -410,57 +410,10 @@ uint8_t CC1100::sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer,
         return FALSE;
     }
 
-    do                                                          //sent package out with retries
-    {
-        tx_payload_burst(my_addr, rx_addr, txbuffer, pktlen);   //loads the data in cc1100 buffer
-        transmit();                                             //sents data over air
-        receive();                                              //receive mode
-
-        if(rx_addr == BROADCAST_ADDRESS || rx_addr == BROADCAST_ADDRESS1){                       //no wait acknowledge if sent to broadcast address or tx_retries = 0
-            return TRUE;                                        //successful sent to BROADCAST_ADDRESS
-        }
-        Serial.printf("wait for ack\n");
-        while (ackWaitCounter < ACK_TIMEOUT )                   //wait for an acknowledge
-        {
-            if (packet_available() == TRUE)                     //if RF package received check package acknowge
-            {
-                Serial.printf("recv data\n");
-                from_sender = rx_addr;                          //the original message sender address
-                rx_fifo_erase(recvbuffer);                        //erase RX software buffer
-                rx_payload_burst(recvbuffer, pktlen_ack);         //reads package in buffer
-                if(debug_level > 0){
-                  Serial.printf("RX_FIFO:");
-                  for(uint8_t i = 0 ; i < pktlen_ack + 1; i++)   //showes rx_buffer for debug
-                  {
-                      uart_puthex_byte(recvbuffer[i]);
-                  }
-                }
-                if(check_acknolage(recvbuffer, pktlen_ack, from_sender, my_addr)){ //check if received message is an acknowledge from client
-                  memcpy(rxbuffer,recvbuffer+3,pktlen_ack-2);
-				          reslen = pktlen_ack-2;
-                  return TRUE;
-                }
-                else{
-                  return FALSE;
-                }
-            }
-            else{
-                ackWaitCounter++;                               //increment ACK wait counter
-                delay(1);                                       //delay to give receiver time
-            }
-        }
-
-        ackWaitCounter = 0;                                     //resets the ACK_Timeout
-        tx_retries_count++;                                     //increase tx retry counter
-
-        if(debug_level > 0){                                    //debug output messages
-            Serial.print(F(" #:"));
-            uart_puthex_byte(tx_retries_count-1);
-            Serial.println();
-        }
-    }while(tx_retries_count <= tx_retries);                     //while count of retries is reaches
-
-    return FALSE;                                               //sent failed. too many retries
+    tx_payload_burst(my_addr, rx_addr, txbuffer, pktlen);   //loads the data in cc1100 buffer
+    transmit();                                             //sents data over air
+    receive();                                              //receive mode
+    return TRUE;                                               //sent failed. too many retries
 }
 //-------------------------------[end]------------------------------------------
 
@@ -484,21 +437,43 @@ void CC1100::sent_acknolage(uint8_t my_addr, uint8_t tx_addr)
 //----------------------[check if Packet is received]---------------------------
 uint8_t CC1100::packet_available()
 {
-    if(digitalRead(GDO2) == TRUE)                           //if RF package received
-    {
-        if(spi_read_register(IOCFG2) == 0x06)               //if sync word detect mode is used
-        {
-            while(digitalRead(GDO2) == TRUE){               //wait till sync word is fully received
-                Serial.println(F("!"));
-            }
-        }
+  if(digitalRead(GDO2) == TRUE)
+  { // rx not finished
+    return 0;
+  }
+  else
+  {
+    uint8_t bytes_in_RXFIFO = 0;
+    uint8_t res = 0;
 
-        if(debug_level > 0){
-            //Serial.println("Pkt->:");
-        }
-        return TRUE;
+    bytes_in_RXFIFO = spi_read_register(RXBYTES);              //reads the number of bytes in RXFIFO
+    if(bytes_in_RXFIFO > 64)
+    {
+      if(debug_level > 0){
+        Serial.print(F("RXFIFO more than 64, error!"));Serial.println(bytes_in_RXFIFO);
+      }
+      sidle();                                                  //set to IDLE
+      spi_write_strobe(SFRX);delayMicroseconds(100);            //flush RX Buffer
+      receive();                                                //set to receive mode
+      return 0;
     }
-    return FALSE;
+    if(bytes_in_RXFIFO & 0x80)
+    {
+      if(debug_level > 0){
+          Serial.print(F("RX Overflow!: "));Serial.println(bytes_in_RXFIFO);
+      }
+      sidle();                                                  //set to IDLE
+      spi_write_strobe(SFRX);delayMicroseconds(100);            //flush RX Buffer
+      receive();                                                //set to receive mode
+      return 0;
+    }
+    else
+    {
+      //Serial.printlnf("have: %d",bytes_in_RXFIFO);
+      return (bytes_in_RXFIFO & 0x7F);
+    }
+  }
+  return 0;
 }
 //-------------------------------[end]------------------------------------------
 

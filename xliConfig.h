@@ -28,7 +28,7 @@
 
 /*** USER DEFINES:  ***/
 #define FAILURE_HANDLING
-//#define SYS_SERIAL_DEBUG
+#define SYS_SERIAL_DEBUG
 #define SYS_RELEASE
 //#define SYS_TEST
 //#define SERIAL_DEBUG
@@ -69,8 +69,8 @@
 #define RTE_DELAY_SYSTIMER        500        // System Timer interval, can be very fast, e.g. 50 means 25ms
 #define RTE_DELAY_SELFCHECK       100         // Self-check interval
 #define RTE_CLOUD_CONN_TIMEOUT    3500        // Timeout for connecting to the Cloud
-#define RTE_WIFI_CONN_TIMEOUT     20000       // Timeout for attempting to connect WIFI
-#define RTE_WATCHDOG_TIMEOUT      30000       // Maxium WD feed duration
+#define RTE_WIFI_CONN_TIMEOUT     30000       // Timeout for attempting to connect WIFI
+#define RTE_WATCHDOG_TIMEOUT      40000       // Maxium WD feed duration
 
 // Number of ticks on System Timer
 #define RTE_TICK_FASTPROCESS			1						// Pace of execution of FastProcess

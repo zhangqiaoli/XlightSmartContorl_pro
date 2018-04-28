@@ -35,6 +35,7 @@ bool MyTransport433::init() {
 	cc1101433.set_channel(_channel);
 	cc1101433.set_myaddr(_address);
 	cc1101433.show_register_settings();
+	cc1101433.receive();
 	_bValid = true;
 	return true;
 }
@@ -68,27 +69,27 @@ bool MyTransport433::CheckConfig()
 	return true;
 }
 
-bool MyTransport433::send(uint8_t to, const void* data, uint8_t len,uint8_t *rxdata,uint8_t& reslen) {
+bool MyTransport433::send(uint8_t to, const void* data, uint8_t len) {
 	uint8_t sndmsg[FIFOBUFFER];
 	memset(sndmsg,0x00,FIFOBUFFER);
 	sndmsg[0]=len+2;
 	sndmsg[1]=to;
 	sndmsg[2]=_address;
 	memcpy(sndmsg+3,data,len);
-	uint8_t ok = cc1101433.sent_packet(_address,to,sndmsg,rxdata,len+3,reslen,5);
+	uint8_t ok = cc1101433.sent_packet(_address,to,sndmsg,len+3);
 	if(ok) return true;
 	return false;
 }
 
-bool MyTransport433::send(uint8_t to, MyMessage &message, MyMessage &recvmessage,uint8_t& reslen) {
+bool MyTransport433::send(uint8_t to, MyMessage &message) {
 	message.setVersion(PROTOCOL_VERSION);
 	message.setLast(_address);
 	uint8_t length = message.getSigned() ? MAX_MESSAGE_LENGTH : message.getLength();
-	return send(to, (void *)&(message.msg), min(MAX_MESSAGE_LENGTH, HEADER_SIZE + length),(uint8_t *)&(recvmessage.msg),reslen);
+	return send(to, (void *)&(message.msg), min(MAX_MESSAGE_LENGTH, HEADER_SIZE + length));
 }
 
 bool MyTransport433::available() {
-	if(cc1101433.packet_available() == TRUE)
+	if(cc1101433.packet_available() >= MAX_MESSAGE_LENGTH+5)
 	{
 		return true;
 	}
@@ -100,16 +101,15 @@ uint8_t MyTransport433::receive(void* data,uint8_t *from,uint8_t *to) {
   uint8_t pktlen, lqi,rx_addr,sender;
 	int8_t rssi_dbm;
 	uint8_t datalen = 0;
-	if(cc1101433.packet_available() == TRUE)
-	{
-		if(cc1101433.get_payload(Rx_fifo, pktlen, rx_addr, sender, rssi_dbm, lqi) == TRUE) //stores the payload data to Rx_fifo
-		 {
-			   *to = rx_addr;
-				 *from = sender;
-				 datalen = pktlen - 3;
-				 memcpy(data,(uint8_t *) Rx_fifo + 3,datalen);
-		 }
-	}
+
+	if(cc1101433.get_payload(Rx_fifo, pktlen, rx_addr, sender, rssi_dbm, lqi) == TRUE) //stores the payload data to Rx_fifo
+	 {
+		   *to = rx_addr;
+			 *from = sender;
+			 datalen = pktlen - 3;
+			 memcpy(data,(uint8_t *) Rx_fifo + 3,datalen);
+	 }
+
 	return datalen;
 }
 

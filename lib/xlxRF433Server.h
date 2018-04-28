@@ -14,6 +14,7 @@ public:
   RF433ServerClass();
 
   bool ServerBegin(uint8_t channel,uint8_t address);
+  bool EnableRFIRQ();
 
   bool ProcessSend(const UC _node, const UC _msgID, String &strPayl, MyMessage &my_msg, const UC _replyTo, const UC _sensor = 0);
   bool ProcessSend(String &strMsg, MyMessage &my_msg, const UC _replyTo = 0, const UC _sensor = 0);
@@ -26,11 +27,14 @@ public:
   bool ProcessSendMQ();
   bool ProcessReceiveMQ();
 
-  bool PeekMessage();
+  void PeekMessage();
 
   unsigned long _times;
   unsigned long _succ;
   unsigned long _received;
+
+  unsigned long _sentID;
+  uint16_t _ackWaitTick;
 
 };
 
