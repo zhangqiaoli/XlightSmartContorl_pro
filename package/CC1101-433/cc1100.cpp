@@ -15,7 +15,7 @@ static uint8_t cc1100_GFSK_2_kb[] = {
                     0x06,  // @IOCFG2        GDO2 Output Pin Configuration
                     0x2E,  // IOCFG1        GDO1 Output Pin Configuration
                     0x80,  // @IOCFG0        GDO0 Output Pin Configuration
-                    0x4F,  // FIFOTHR       RX FIFO and TX FIFO Thresholds
+                    0x06,  // FIFOTHR       RX FIFO and TX FIFO Thresholds
                     0x87,  // @SYNC1         Sync Word, High Byte
                     0x99,  // @SYNC0         Sync Word, Low Byte
                     0xFF,  // @PKTLEN        Packet Length
@@ -497,7 +497,7 @@ uint8_t CC1100::get_payload(uint8_t rxbuffer[], uint8_t &pktlen, uint8_t &my_add
         pktlen = rxbuffer[0];
         rssi_dbm = rssi_convert(rxbuffer[pktlen + 1]); //converts receiver strength to dBm
         lqi = lqi_convert(rxbuffer[pktlen + 2]);       //get rf quialtiy indicator
-        crc = check_crc(lqi);                          //get packet CRC
+        crc = check_crc(rxbuffer[pktlen + 2]);                          //get packet CRC
 
         if(debug_level > 0){                           //debug output messages
             if(rxbuffer[1] == BROADCAST_ADDRESS)       //if my receiver address is BROADCAST_ADDRESS

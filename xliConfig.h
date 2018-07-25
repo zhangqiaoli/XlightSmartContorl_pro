@@ -66,18 +66,18 @@
 //------------------------------------------------------------------
 // Running Time Environment Parameters
 #define RTE_DELAY_PUBLISH         60          // Maximum publish data refresh time in seconds
-#define RTE_DELAY_SYSTIMER        500        // System Timer interval, can be very fast, e.g. 50 means 25ms
+#define RTE_DELAY_SYSTIMER        10          // System Timer interval, can be very fast
 #define RTE_DELAY_SELFCHECK       100         // Self-check interval
 #define RTE_CLOUD_CONN_TIMEOUT    3500        // Timeout for connecting to the Cloud
-#define RTE_WIFI_CONN_TIMEOUT     30000       // Timeout for attempting to connect WIFI
-#define RTE_WATCHDOG_TIMEOUT      40000       // Maxium WD feed duration
+#define RTE_WIFI_CONN_TIMEOUT     20000       // Timeout for attempting to connect WIFI
+#define RTE_WATCHDOG_TIMEOUT      30000       // Maxium WD feed duration
 
 // Number of ticks on System Timer
 #define RTE_TICK_FASTPROCESS			1						// Pace of execution of FastProcess
 #define RTE_TICK_SLOWPROCESS			10					// Pace of execution of slow process
 
 // Keep alive message timeout
-#define RTE_TM_KEEP_ALIVE         16
+#define RTE_TM_KEEP_ALIVE         60
 
 // Panel Operarion Timers
 #define RTE_TM_MAX_CCT_IDLE       6           // Maximum idle time (seconds) in CCT control mode
@@ -131,16 +131,26 @@
 #endif
 
 // NodeID Convention
-#define NODEID_GATEWAY          0
-#define NODEID_MAINDEVICE       101
-#define NODEID_MIN_DEVCIE       101
-#define NODEID_MAX_DEVCIE       200
+#define NODEID_GATEWAY          254
+#define NODEID_MAINDEVICE       1
+#define NODEID_MIN_LAMP         8
+#define NODEID_MAX_LAMP         31
+#define NODEID_MIN_SWITCH       32
+#define NODEID_MAX_SWITCH       63
 #define NODEID_MIN_REMOTE       64
-#define NODEID_MAX_REMOTE       127
+#define NODEID_MAX_REMOTE       71
+#define NODEID_MIN_AC           72
+#define NODEID_MAX_AC           79
+#define NODEID_MIN_FAN          80
+#define NODEID_MAX_FAN          95
 #define NODEID_PROJECTOR        128
 #define NODEID_KEYSIMULATOR     129
 #define NODEID_SUPERSENSOR      130
 #define NODEID_SMARTPHONE       139
+#define NODEID_MIN_AIRPURE      140
+#define NODEID_MAX_AIRPURE      147
+#define NODEID_MIN_CURTAIN      148
+#define NODEID_MAX_CURTAIN      179
 #define NODEID_MIN_GROUP        192
 #define NODEID_MAX_GROUP        223
 #define NODEID_RF_SCANNER       250

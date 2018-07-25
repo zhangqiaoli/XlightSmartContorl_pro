@@ -49,9 +49,6 @@ public:
   bool doSys(const char *cmd);
   bool doSysSub(const char *cmd);
 
-  bool SetupWiFi(const char *cmd);
-  bool SetWiFiCredential(const char *cmd);
-  void UpdateWiFiCredential();
   bool PingAddress(const char *sAddress);
   bool String2IP(const char *sAddress, IPAddress &ipAddr);
 

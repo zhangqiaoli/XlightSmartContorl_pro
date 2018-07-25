@@ -102,6 +102,10 @@ enum COMMAND {CMD_SERIAL, CMD_POWER, CMD_COLOR, CMD_BRIGHTNESS, CMD_SCENARIO, CM
 #define NODE_TYP_LAMP             'l'
 #define NODE_TYP_REMOTE           'r'
 #define NODE_TYP_SYSTEM           's'
+#define NODE_TYP_AC               'a'
+#define NODE_TYP_CURTAIN          'c'
+#define NODE_TYP_AIRPURE          'p'
+#define NODE_TYP_SWITCH           'w'
 #define NODE_TYP_THIRDPARTY       't'
 
 // BLE Configuration Settings
@@ -201,8 +205,16 @@ typedef enum
 
 #define IS_GROUP_NODEID(nID)        (nID >= NODEID_MIN_GROUP && nID <= NODEID_MAX_GROUP)
 #define IS_SPECIAL_NODEID(nID)      (nID >= NODEID_PROJECTOR && nID <= NODEID_SMARTPHONE)
-#define IS_NOT_DEVICE_NODEID(nID)   ((nID < NODEID_MIN_DEVCIE || nID > NODEID_MAX_DEVCIE) && nID != NODEID_MAINDEVICE)
+#define IS_NOT_DEVICE_NODEID(nID)   ((nID < NODEID_MIN_LAMP || nID > NODEID_MAX_LAMP) && nID != NODEID_MAINDEVICE)
 #define IS_NOT_REMOTE_NODEID(nID)   (nID < NODEID_MIN_REMOTE || nID > NODEID_MAX_REMOTE)
+#define IS_REMOTE_NODEID(nID)       (nID >= NODEID_MIN_REMOTE && nID <= NODEID_MAX_REMOTE)
+#define IS_NOT_AC_NODEID(nID)       (nID < NODEID_MIN_AC || nID > NODEID_MAX_AC)
+#define IS_AC_NODEID(nID)           (nID >= NODEID_MIN_AC && nID <= NODEID_MAX_AC)
+#define IS_LAMP_NODEID(nID)          (nID >= NODEID_MIN_LAMP && nID <= NODEID_MAX_LAMP || nID == NODEID_MAINDEVICE)
+#define IS_FAN_NODEID(nID)           (nID >= NODEID_MIN_FAN && nID <= NODEID_MAX_FAN)
+#define IS_AIRPURE_NODEID(nID)       (nID >= NODEID_MIN_AIRPURE && nID <= NODEID_MAX_AIRPURE)
+#define IS_CURTAIN_NODEID(nID)       (nID >= NODEID_MIN_CURTAIN && nID <= NODEID_MAX_CURTAIN)
+#define IS_SWITCH_NODEID(nID)        (nID >= NODEID_MIN_SWITCH && nID <= NODEID_MAX_SWITCH)
 
 // Remote type
 typedef enum

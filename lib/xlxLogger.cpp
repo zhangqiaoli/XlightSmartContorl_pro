@@ -30,6 +30,7 @@
 
 #include "xlxLogger.h"
 #include "xlSmartController.h"
+#include "xlxPublishQueue.h"
 
 // the one and only instance of LoggerClass
 LoggerClass theLog = LoggerClass();
@@ -107,7 +108,8 @@ void LoggerClass::WriteLog(UC level, const char *tag, const char *msg, ...)
 
   // Output Log to Particle cloud variable
   if( level <= m_level[LOGDEST_CLOUD] ) {
-    theSys.PublishLog(buf);
+    String strTemp = buf;
+    theSys.PublishMsg(CLT_ID_LOGMSG,strTemp,strTemp.length());
   }
 
   // ToDo: send log to other destinations

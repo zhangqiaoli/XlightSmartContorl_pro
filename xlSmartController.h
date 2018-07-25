@@ -21,6 +21,10 @@
 //------------------------------------------------------------------
 class SmartControllerClass : public CloudObjClass
 {
+public:
+  // add for button action
+  uint8_t m_action[4];
+  uint8_t m_actionchanged;
 private:
   BOOL m_isRF;
   BOOL m_isLAN;
@@ -35,6 +39,7 @@ private:
 public:
 	void GetMac(uint8_t *mac);
 	void SetMac(uint8_t *mac);
+	UC GetRelaykey();
 public:
   SmartControllerClass();
   void Init();
@@ -56,9 +61,10 @@ public:
   BOOL IsRFGood();
   BOOL IsLANGood();
   BOOL IsWANGood();
+  void OnCloudStatusChanged();
 
-  BOOL connectWiFi();
-  BOOL connectCloud();
+  BOOL connectWiFi(BOOL bNeedWait=true);
+  BOOL connectCloud(BOOL bNeedWait=true);
 
   // Process all kinds of commands
   void ProcessLocalCommands();
@@ -67,8 +73,8 @@ public:
   //bool ExecuteLightCommand(String mySerialStr);
 
   // Device Control Functions
-  int DeviceSwitch(UC sw, UC hwsw = 2, UC dev = 0, const UC subID = 0);
-  int DevSoftSwitch(UC sw, UC dev = 0, const UC subID = 0);
+  int DeviceSwitch(UC sw, UC hwsw = 2, UC dev = 0, const UC subID = 0,UC *arrDevType = NULL,UC devTypeNum = 0);
+  int DevSoftSwitch(UC sw, UC dev = 0, const UC subID = 0,UC *arrDevType = NULL,UC devTypeNum = 0);
   int DevHardSwitch(UC key, UC sw);
   bool HardConfirmOnOff(UC dev, const UC subID = 0, const UC _st = 0);
   bool MakeSureHardSwitchOn(UC dev = 0, const UC subID = 0);
@@ -139,20 +145,21 @@ public:
   bool SetLoopKeyCode(const UC _key = 0);
   bool IsLoopKeyCodeTimeout();
 
-  US VerifyDevicePresence(UC *_assoDev, UC _nodeID, UC _devType, uint64_t _identity);
-  BOOL ToggleLampOnOff(UC _nodeID = NODEID_MAINDEVICE, const UC subID = 0);
-  BOOL ChangeLampBrightness(UC _nodeID = NODEID_MAINDEVICE, UC _percentage = 50, const UC subID = 0);
+  ListNode<DevStatusRow_t>* UpdateNodeList(UC _nodeID, UC _sid, UC _devType=0, uint64_t _identity=0,US token=0);
+  BOOL ChangeLampBrightness(UC _nodeID = NODEID_MAINDEVICE,UC _percentage = 50, const UC subID = 0);
   BOOL ChangeLampCCT(UC _nodeID = NODEID_MAINDEVICE, US _cct = 3000, const UC subID = 0);
   BOOL ChangeBR_CCT(UC _nodeID, UC _br, US _cct, const UC subID = 0);
   BOOL ChangeLampScenario(UC _nodeID, UC _scenarioID, UC _replyTo = 0, const UC _sensor = 0);
   BOOL RequestDeviceStatus(UC _nodeID, const UC subID = 0);
-  BOOL ConfirmLampOnOff(UC _nodeID, UC _st);
-  BOOL ConfirmLampBrightness(UC _nodeID, UC _st, UC _percentage, UC _ringID = RING_ID_ALL);
-  BOOL ConfirmLampCCT(UC _nodeID, US _cct, UC _ringID = RING_ID_ALL);
-  BOOL ConfirmLampHue(UC _nodeID, UC _white, UC _red, UC _green, UC _blue, UC _ringID = RING_ID_ALL);
-  BOOL ConfirmLampTop(UC _nodeID, UC *_payl, UC _len);
-  BOOL ConfirmLampFilter(UC _nodeID, UC _filter);
-  BOOL ConfirmLampPresent(ListNode<DevStatusRow_t> *pDev, bool _up);
+  BOOL ConfirmLampSunnyStatus(UC _nodeID,UC _sid, UC _st, UC _percentage, US _cct,UC _filter,UC _ringID = RING_ID_ALL);
+  BOOL ConfirmLampOnOff(UC _nodeID,UC _sid, UC _st);
+  BOOL ConfirmLampBrightness(UC _nodeID,UC _sid, UC _st, UC _percentage, UC _ringID = RING_ID_ALL);
+  BOOL ConfirmLampCCT(UC _nodeID,UC _sid, US _cct, UC _ringID = RING_ID_ALL);
+  BOOL ConfirmLampHue(UC _nodeID,UC _sid, UC _white, UC _red, UC _green, UC _blue, UC _ringID = RING_ID_ALL);
+  BOOL ConfirmLampTop(UC _nodeID,UC _sid, UC *_payl, UC _len);
+  BOOL ConfirmLampFilter(UC _nodeID,UC _sid, UC _filter);
+  BOOL ConfirmLampPresent(ListNode<DevStatusRow_t> *pDev, bool _up,bool _bPresence=false);
+  BOOL ConfirmPresent(NodeIdRow_t &_nodeRow, bool _up,bool _bPresence=false);
   BOOL QueryDeviceStatus(UC _nodeID, UC _ringID = RING_ID_ALL);
   BOOL RebootNode(UC _nodeID, const UC subID = 0);
   BOOL IsAllRingHueSame(ListNode<DevStatusRow_t> *pDev);
@@ -161,7 +168,10 @@ public:
   void Array2Hue(JsonArray& data, Hue_t& hue);     // Copy JSON array to Hue structure
   void SetRelayKeyFlag(const UC _code, const bool _on);
   void PublishRelayKeyFlag();
+  void PublishBtnAction();
+  void LoadStatusData();
 
+  void ProcessPublishMsg();
 };
 
 //------------------------------------------------------------------

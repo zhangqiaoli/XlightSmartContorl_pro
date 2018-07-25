@@ -70,8 +70,6 @@ bool gc_doSend(const char *cmd) { return theConsole.doSend(cmd); }
 bool gc_doSet(const char *cmd) { return theConsole.doSet(cmd); }
 bool gc_doSys(const char *cmd) { return theConsole.doSys(cmd); }
 bool gc_doSysSub(const char *cmd) { return theConsole.doSysSub(cmd); }
-bool gc_doSysSetupWiFi(const char *cmd) { return theConsole.SetupWiFi(cmd); }
-bool gc_doSysSetWiFiCredential(const char *cmd) { return theConsole.SetWiFiCredential(cmd); }
 
 //------------------------------------------------------------------
 // State Machine
@@ -126,41 +124,11 @@ const StateMachine_t fsmMain[] = {
   {consoleSys,        consoleRoot,    "base",             gc_doSysSub},
   {consoleSys,        consoleRoot,    "private",          gc_doSysSub},
   {consoleSys,        consoleRoot,    "serial",           gc_doSysSub},
-  /// Workflow
-  {consoleSys,        consoleWF_YesNo,   "setup",         gc_doSysSetupWiFi},
   /// Menu default
   {consoleSys,        consoleRoot,    "",                 gc_doHelp},
-
-  {consoleWF_YesNo,   consoleWF_GetSSID, "yes",           gc_doSysSetupWiFi},
-  {consoleWF_YesNo,   consoleWF_GetSSID, "y",             gc_doSysSetupWiFi},
-  {consoleWF_YesNo,   consoleRoot,    "no",               gc_nop},
-  {consoleWF_YesNo,   consoleRoot,    "n",                gc_nop},
-  {consoleWF_YesNo,   consoleRoot,    "",                 gc_nop},
-  {consoleWF_GetSSID, consoleWF_GetPassword, "",          gc_doSysSetupWiFi},
-  {consoleWF_GetPassword, consoleWF_GetAUTH, "",          gc_doSysSetupWiFi},
-  {consoleWF_GetAUTH, consoleWF_Cipher,  "0",             gc_doSysSetupWiFi},
-  {consoleWF_GetAUTH, consoleWF_Cipher,  "1",             gc_doSysSetupWiFi},
-  {consoleWF_GetAUTH, consoleWF_Cipher,  "2",             gc_doSysSetupWiFi},
-  {consoleWF_GetAUTH, consoleWF_Cipher,  "3",             gc_doSysSetupWiFi},
-  {consoleWF_GetAUTH, consoleRoot,    "q",                gc_nop},
-  {consoleWF_Cipher,  consoleWF_Confirm, "0",             gc_doSysSetupWiFi},
-  {consoleWF_Cipher,  consoleWF_Confirm, "1",             gc_doSysSetupWiFi},
-  {consoleWF_Cipher,  consoleWF_Confirm, "2",             gc_doSysSetupWiFi},
-  {consoleWF_Cipher,  consoleWF_Confirm, "3",             gc_doSysSetupWiFi},
-  {consoleWF_Cipher,  consoleRoot,    "q",                gc_nop},
-  {consoleWF_Confirm, consoleRoot,    "yes",              gc_doSysSetWiFiCredential},
-  {consoleWF_Confirm, consoleRoot,    "y",                gc_doSysSetWiFiCredential},
-  {consoleWF_Confirm, consoleRoot,    "no",               gc_nop},
-  {consoleWF_Confirm, consoleRoot,    "n",                gc_nop},
-  {consoleWF_Confirm, consoleRoot,    "",                 gc_nop},
-
   /// System default
   {consoleDummy,      consoleRoot,    "",                 gc_doHelp}
 };
-
-const char *strAuthMethods[4] = {"None", "WEP", "WPA", "WPA2"};
-const char *strCipherMethods[4] = {"None", "AES", "TKIP", "AES_TKIP"};
-
 //------------------------------------------------------------------
 // Xlight SerialConsole Class
 //------------------------------------------------------------------
@@ -870,11 +838,20 @@ bool SerialConsoleClass::doSet(const char *cmd)
         sParam2 = next();   // Get nodeID
         if( sParam2 ) {
           UC subID = 0;
+		      UC type = 0;
           sParam3 = next();   // Get subID
-          if( sParam3 ) subID = (UC)atoi(sParam3);
-          theConfig.SetKeyMapItem((UC)atoi(sParam1), (UC)atoi(sParam2), subID);
-          SERIAL_LN("Key%s maps to %s-%d\n\r", sParam1, sParam2, subID);
-          CloudOutput("key%s:%s-%d", sParam1, sParam2, subID);
+          if( sParam3 )
+		      {
+    			  subID = (UC)atoi(sParam3);
+    			  sParam4 = next();
+    			  if( sParam4 )
+    			  {
+    				  type = (UC)atoi(sParam4);
+    			  }
+    		  }
+          theConfig.SetKeyMapItem((UC)atoi(sParam1), (UC)atoi(sParam2), subID,type);
+          SERIAL_LN("Key%s maps to %s-%d-%d\n\r", sParam1, sParam2, subID,type);
+          CloudOutput("key%s:%s-%d-%d", sParam1, sParam2, subID,type);
           retVal = true;
         } else {
           SERIAL_LN("Require a valid nodeID\n\r");
@@ -1034,102 +1011,6 @@ bool SerialConsoleClass::doSysSub(const char *cmd)
     }
   } else { return false; }
 
-  return true;
-}
-
-//--------------------------------------------------
-// Support Functions
-//--------------------------------------------------
-// Get WI-Fi crediential from serial Port
-bool SerialConsoleClass::SetupWiFi(const char *cmd)
-{
-  String sText;
-  switch( (consoleState_t)currentState ) {
-  case consoleWF_YesNo:
-    // Confirm menu choice
-    sText = "Sure to setup Wi-Fi crediential? (y/N)";
-    SERIAL_LN(sText.c_str());
-    CloudOutput(sText.c_str());
-    break;
-
-  case consoleWF_GetSSID:
-    sText = "Please enter SSID";
-    SERIAL_LN("%s [%s]:", sText.c_str(), gstrWiFi_SSID.c_str());
-    CloudOutput(sText.c_str());
-    break;
-
-  case consoleWF_GetPassword:
-    // Record SSID
-    if( strlen(cmd) > 0 )
-      gstrWiFi_SSID = cmd;
-    sText = "Please enter PASSWORD";
-    SERIAL_LN("%s:", sText.c_str());
-    CloudOutput(sText.c_str());
-    break;
-
-  case consoleWF_GetAUTH:
-    // Record Password
-    if( strlen(cmd) > 0 )
-      gstrWiFi_Password = cmd;
-    SERIAL_LN("Please select authentication method: [%d]", gintWiFi_Auth);
-    SERIAL_LN("  0. %s", strAuthMethods[0]);
-    SERIAL_LN("  1. %s", strAuthMethods[1]);
-    SERIAL_LN("  2. %s", strAuthMethods[2]);
-    SERIAL_LN("  3. %s", strAuthMethods[3]);
-    SERIAL_LN("  (q)uit");
-    CloudOutput("Select authentication method [0..3]");
-    break;
-
-  case consoleWF_Cipher:
-    // Record authentication method
-    if( strlen(cmd) > 0 )
-      gintWiFi_Auth = atoi(cmd) % 4;
-    SERIAL_LN("Please select cipher method: [%d]", gintWiFi_Cipher);
-    SERIAL_LN("  0. %s", strCipherMethods[0]);
-    SERIAL_LN("  1. %s", strCipherMethods[1]);
-    SERIAL_LN("  2. %s", strCipherMethods[2]);
-    SERIAL_LN("  3. %s", strCipherMethods[3]);
-    SERIAL_LN("  (q)uit");
-    CloudOutput("Select cipher method [0..3]");
-    break;
-
-  case consoleWF_Confirm:
-    // Record cipher method
-    if( strlen(cmd) > 0 )
-      gintWiFi_Cipher = atoi(cmd) % 4;
-    SERIAL_LN("Are you sure to apply the Wi-Fi credential? (y/N)");
-    SERIAL_LN("  SSID: %s", gstrWiFi_SSID.c_str());
-    SERIAL_LN("  Password: ******");
-    SERIAL_LN("  Authentication: %s", strAuthMethods[gintWiFi_Auth]);
-    SERIAL_LN("  Cipher: %s", strCipherMethods[gintWiFi_Cipher]);
-    CloudOutput("Sure to apply the Wi-Fi credential? (y/N)");
-    break;
-  }
-
-  return true;
-}
-
-void SerialConsoleClass::UpdateWiFiCredential()
-{
-  if( gintWiFi_Cipher > 0 ) {
-    WiFi.setCredentials(gstrWiFi_SSID, gstrWiFi_Password, gintWiFi_Auth, gintWiFi_Cipher);
-  } else if( gintWiFi_Auth > 0 ) {
-    WiFi.setCredentials(gstrWiFi_SSID, gstrWiFi_Password, gintWiFi_Auth);
-  } else if( gstrWiFi_Password.length() > 0 ) {
-    WiFi.setCredentials(gstrWiFi_SSID, gstrWiFi_Password);
-  } else {
-    WiFi.setCredentials(gstrWiFi_SSID);
-  }
-}
-
-bool SerialConsoleClass::SetWiFiCredential(const char *cmd)
-{
-  theConfig.SetDisableWiFi(false);
-  UpdateWiFiCredential();
-  SERIAL("Wi-Fi credential saved");
-  WiFi.listen(false);
-  theSys.connectWiFi();
-  CloudOutput("Wi-Fi credential saved, reconnect %s", WiFi.ready() ? "OK" : "Failed");
   return true;
 }
 

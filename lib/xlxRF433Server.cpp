@@ -44,6 +44,8 @@
 #include "xlxPanel.h"
 
 #include "MyParserSerial.h"
+#include "xlxPublishQueue.h"
+#include "xlxAirCondManager.h"
 
 //------------------------------------------------------------------
 // the one and only instance of RF433ServerClass
@@ -79,6 +81,11 @@ bool RF433ServerClass::EnableRFIRQ()
 	// enable 433 rx/tx interrupt
 	attachInterrupt(GDO2, &RF433ServerClass::PeekMessage, this,FALLING);
 	return true;
+}
+
+bool RF433ServerClass::ChangeNodeID(const uint8_t bNodeID)
+{
+  //TODO
 }
 
 bool RF433ServerClass::ProcessMQ()
@@ -467,72 +474,173 @@ bool RF433ServerClass::ProcessReceiveMQ()
 	    case C_INTERNAL:
 	      if( msgType == I_ID_REQUEST ) {
 				}
-				break;
+				else if( msgType == I_CONFIG ) {
+				   if( _bIsAck ) {
+						 if( _sensor == NCF_QUERY ) {
+							 theSys.GotNodeConfigAck(replyTo, payload);
+						 }
+					 }
+				 } else if( msgType == I_REBOOT ) {
+					 // TODO Reboot node
+					 transTo = msg.getDestination();
+					 //ListNode<DevStatusRow_t> *DevStatusRowPtr = theSys.SearchDevStatus(transTo);
+					 //if( DevStatusRowPtr ) {
+						 msg.build(replyTo, transTo, _sensor, C_INTERNAL, I_REBOOT, false);
+						 //msg.set((unsigned int)DevStatusRowPtr->data.token);
+						 msgReady = true;
+					 //}
+				 }
+				 /*else if( msgType == I_GET_NONCE ) {
+				 // RF Scanner Probe
+					 if( replyTo == NODEID_RF_SCANNER ) {
+						 if( payload[0] == SCANNER_PROBE ) {
+							 MsgScanner_ProbeAck();
+						 } else if( payload[0] == SCANNER_SETUP_RF ) {
+							 transTo = msg.getDestination();
+							 if(transTo == NODEID_GATEWAY)
+								 Process_SetupRF(payload + 1,payl_len-1);
+						 }
+						 else if( payload[0] == SCANNER_SETUPDEV_RF ) {
+							 uint8_t mac[6] = {0};
+							 //WiFi.macAddress(mac);
+							 theSys.GetMac(mac);
+							 if(isIdentityEqual(payload + 1,mac,sizeof(mac)))
+								 Process_SetupRF(payload + 1 + LEN_NODE_IDENTITY, payl_len - 1 - LEN_NODE_IDENTITY);
+						 }
+					 }
+				 }*/
+				 break;
+			 case C_PRESENTATION:
+ 				if( _sensor == S_LIGHT || _sensor == S_DIMMER || _sensor == S_ZENSENSOR || _sensor == S_ZENREMOTE ||\
+ 					  _sensor == S_POWER || _sensor == S_HVAC) {
+ 					US token;
+ 					if( _needAck ) {
+ 						// Presentation message: appear of Smart Lamp
+ 						// Verify credential, return token if true, and change device status
+ 						uint64_t nIdentity = msg.getUInt64();
+ 						token = random(65535);
+ 						theSys.UpdateNodeList(replyTo,0, msgType, nIdentity,token);
+ 						if( token ) {
+ 							// return token
+ 							// Notes: lampType & S_LIGHT (msgType) are not necessary, use for associated device
+ 			        msg.build(getAddress(), replyTo, _sensor, C_PRESENTATION, msgType, false, true);
+ 							msg.set((unsigned int)token);
+ 							msgReady = true;
+ 							// ToDo: send status req to this lamp
+ 						}
+ 						//theNodeManager.UpdateNode(lv_nNodeID,);
+ 						LOGN(LOGTAG_MSG, "Node:%d presence!",replyTo);
+ 					}
+ 				}
+ 				else {
+ 					if( _sensor == S_MOTION || _sensor == S_IR ) {
+ 						if( msgType == V_STATUS) { // PIR
+ 							theSys.UpdateMotion(replyTo, _sensor, msg.getByte());
+ 						}
+ 					} else if( _sensor == S_LIGHT_LEVEL ) {
+ 						if( msgType == V_LIGHT_LEVEL) { // ALS
+ 							theSys.UpdateBrightness(replyTo, msg.getByte());
+ 						}
+ 					} else if( _sensor == S_SOUND ) {
+ 						if( msgType == V_STATUS ) { // MIC
+ 							theSys.UpdateSound(replyTo, payload[0]);
+ 						} else if( msgType == V_LEVEL ) {
+ 							_iValue = payload[1] * 256 + payload[0];
+ 							theSys.UpdateNoise(replyTo, _iValue);
+ 						}
+ 					} else if( _sensor == S_TEMP || _sensor == S_HUM ) {
+ 						float lv_flt1 = 255, lv_flt2 = 255;
+ 						if( msgType == V_LEVEL && payl_len >= 4 ) {
+ 							lv_flt1 = payload[0] + payload[1] / 100.0;
+ 							lv_flt2 = payload[2] + payload[3] / 100.0;
+ 						} else if( _sensor == S_TEMP && msgType == V_TEMP ) {
+ 							lv_flt1 = payload[0] + payload[1] / 100.0;
+ 						} else if( _sensor == S_HUM && msgType == V_HUM ) {
+ 							lv_flt2 = payload[0] + payload[1] / 100.0;
+ 						}
+ 						theSys.UpdateDHT(replyTo, lv_flt1, lv_flt2);
+ 					} else if( _sensor == S_DUST || _sensor == S_AIR_QUALITY || _sensor == S_SMOKE ) {
+ 						if( msgType == V_LEVEL ) { // Dust, Gas or Smoke
+ 							_iValue = payload[1] * 256 + payload[0];
+ 							if( _sensor == S_DUST ) {
+ 								theSys.UpdateDust(replyTo, _iValue);
+ 							} else if( _sensor == S_AIR_QUALITY ) {
+ 								if(payl_len >= 10)
+ 								{
+ 								  US pm10 = payload[3] * 256 + payload[2];
+ 									float tvoc = (payload[5] * 256 + payload[4])/10.0;
+ 									float ch2o = (payload[7] * 256 + payload[6])/10.0;
+ 									US co2 = payload[9] * 256 + payload[8];
+ 									theSys.UpdateAirQuality(replyTo, _iValue,pm10,tvoc,ch2o,co2);
+ 								}
+ 								else
+ 								{
+ 									theSys.UpdateGas(replyTo, _iValue);
+ 								}
+ 							} else if( _sensor == S_SMOKE ) {
+ 								theSys.UpdateSmoke(replyTo, _iValue);
+ 							}
+ 						}
+ 					}
+ 				}
+ 				break;
 			case C_REQ:
 				if( msgType == V_STATUS || msgType == V_PERCENTAGE || msgType == V_LEVEL
-						|| msgType == V_RGBW || msgType == V_DISTANCE || msgType == V_VAR1
-						|| msgType == V_RELAY_ON || msgType == V_RELAY_OFF || msgType == V_RELAY_MAP ) {
-					//transTo = (msg.getDestination() == getAddress() ? _sensor : msg.getDestination());
+					  || msgType == V_RGBW || msgType == V_DISTANCE || msgType == V_VAR1
+					  || msgType == V_RELAY_MAP ) {
 					transTo = msg.getDestination();
-					BOOL bDataChanged = false;
-					/*if( _bIsAck )*/ {
+					BOOL bLampDataChanged = false;
+					if( _bIsAck ) {
 						//SERIAL_LN("REQ ack:%d to: %d 0x%x-0x%x-0x%x-0x%x-0x%x-0x%x-0x%x", msgType, transTo, payload[0],payload[1], payload[2], payload[3], payload[4],payload[5],payload[6]);
-						if( msgType == V_STATUS ||  msgType == V_PERCENTAGE ) {
-							if( IS_SPECIAL_NODEID(replyTo) ) {
-								// Publish Special Node Status
-								if( msgType == V_STATUS ) {
-									strTemp = String::format("{'nd':%d,'State':%d}", replyTo, payload[0]);
-								} else {
-									strTemp = String::format("{'nd':%d,'State':%d,'BR':%d}", replyTo, payload[0], payload[1]);
-								}
-								theSys.PublishDeviceStatus(strTemp.c_str());
-								bDataChanged = true;
-							} else {
-								bDataChanged |= theSys.ConfirmLampBrightness(replyTo, payload[0], payload[1]);
+						if( msgType == V_STATUS ) {
+							if(IS_LAMP_NODEID(replyTo))
+							{
+								bLampDataChanged |= theSys.ConfirmLampOnOff(replyTo, _sensor,payload[0]);
 							}
+						}
+						if( msgType == V_PERCENTAGE ) {
+							bLampDataChanged |= theSys.ConfirmLampBrightness(replyTo, _sensor,payload[0], payload[1]);
 						} else if( msgType == V_LEVEL ) {
-							bDataChanged |= theSys.ConfirmLampCCT(replyTo, (US)msg.getUInt());
+							bLampDataChanged |= theSys.ConfirmLampCCT(replyTo,_sensor, (US)msg.getUInt());
 						} else if( msgType == V_RGBW ) {
+							// lamp timing status msg
 							if( payload[0] ) {	// Succeed or not
 								static bool bFirstRGBW = true;		// Make sure the first message will be sent anyway
 								UC _devType = payload[1];	// payload[2] is present status
 								UC _ringID = payload[3];
+								UC filter = payload[payl_len-1];
 								if( IS_SUNNY(_devType) ) {
 									// Sunny
 									US _CCTValue = payload[7] * 256 + payload[6];
-									bDataChanged |= theSys.ConfirmLampCCT(replyTo, _CCTValue, _ringID);
-									bDataChanged |= theSys.ConfirmLampBrightness(replyTo, payload[4], payload[5], _ringID);
-									bDataChanged |= bFirstRGBW;
+									bLampDataChanged |= theSys.ConfirmLampSunnyStatus(replyTo,_sensor,payload[4], payload[5], _CCTValue, filter,_ringID);
+									bLampDataChanged |= bFirstRGBW;
 									bFirstRGBW = false;
 								} else if( IS_RAINBOW(_devType) || IS_MIRAGE(_devType) ) {
 									// Rainbow or Mirage, set RBGW
-									bDataChanged |= theSys.ConfirmLampHue(replyTo, payload[6], payload[7], payload[8], payload[9], _ringID);
-									bDataChanged |= theSys.ConfirmLampBrightness(replyTo, payload[4], payload[5], _ringID);
-									bDataChanged |= bFirstRGBW;
+									bLampDataChanged |= theSys.ConfirmLampHue(replyTo,_sensor,payload[6], payload[7], payload[8], payload[9], _ringID);
+									bLampDataChanged |= theSys.ConfirmLampBrightness(replyTo, _sensor, payload[4], payload[5], _ringID);
+									bLampDataChanged |= bFirstRGBW;
 									bFirstRGBW = false;
 								}
 							}
 						} else if( msgType == V_VAR1 ) { // Change special effect ack
-							bDataChanged |= theSys.ConfirmLampFilter(replyTo, payload[0]);
+							bLampDataChanged |= theSys.ConfirmLampFilter(replyTo, _sensor, payload[0]);
 						} else if( msgType == V_DISTANCE && payload[0] ) {
 							UC _devType = payload[1];	// payload[2] is present status
 							if( IS_MIRAGE(_devType) ) {
-								bDataChanged |= theSys.ConfirmLampTop(replyTo, payload, payl_len);
+								bLampDataChanged |= theSys.ConfirmLampTop(replyTo, _sensor, payload, payl_len);
 							}
-						} else if( msgType == V_RELAY_ON || msgType == V_RELAY_OFF ) {
-							// Publish Relay Status
-							strTemp = String::format("{'nd':%d,'k_%s':'%c'}", replyTo, msgType == V_RELAY_ON ? "on" : "off", payload[0]);
-							theSys.PublishDeviceStatus(strTemp.c_str());
-							//bDataChanged = true;
-						} else if( msgType == V_RELAY_MAP ) {
+						}else if( msgType == V_RELAY_MAP ) {
 							// Publish Relay Status
 							strTemp = String::format("{'nd':%d,'subid':%d,'km':%d}", replyTo, _sensor,payload[0]);
-							theSys.PublishDeviceStatus(strTemp.c_str());
-							//bDataChanged = true;
+							theSys.PublishMsg(CLT_ID_DeviceStatus,strTemp.c_str(),strTemp.length(),replyTo,1);
+							//LOGD(LOGTAG_MSG, "Recv nd:%d relay msg:%d",replyTo,payload[0]);
+							theSys.UpdateNodeList(replyTo,_sensor);
+
 						}
 
 						// If data changed, new status must broadcast to all end points
-						if( bDataChanged ) {
+						if( bLampDataChanged ) {
 							transTo = BROADCAST_ADDRESS;
 						}
 					} /* else { // Request
@@ -547,47 +655,65 @@ bool RF433ServerClass::ProcessReceiveMQ()
 						msgReady = true;
 					}
 				}
-				break;
-
-			case C_SET:
-				// ToDo: verify token
-				// ToDo: if lamp is not present, return error
-				transTo = msg.getDestination();
-        if( transTo == NODEID_KEYSIMULATOR ) {
-					// Transfer message to Key Simuluator, use _sensor to identify subID
-					msg.build(replyTo, transTo, _sensor, C_SET, msgType, _needAck, _bIsAck, true);
-					// Keep payload unchanged
-					msgReady = true;
-				} else {
-					//transTo = (msg.getDestination() == getAddress() ? _sensor : msg.getDestination());
-					if( transTo > 0 ) {
-						bool lv_skip = false;
-						// Remote turns on or set scene: make sure hardswitch is on
-						if( msgType == V_STATUS ) { //&& !IS_NOT_REMOTE_NODEID(replyTo) ) {
-							if( theConfig.GetHardwareSwitch() ) {
-								_bValue = payload[0];
-								if( _bValue == DEVICE_SW_TOGGLE ) _bValue = 1 - theSys.GetDevOnOff(transTo);
-								if( _bValue == DEVICE_SW_OFF ) {
-									lv_skip = theSys.DeviceSwitch(DEVICE_SW_OFF, 1, transTo, _sensor);
-								} else {
-									lv_skip = theSys.DevSoftSwitch(DEVICE_SW_ON, transTo, _sensor);
-									if( lv_skip ) theSys.HardConfirmOnOff(transTo, _sensor, DEVICE_SW_ON);
-								}
-							} else {
-								theSys.MakeSureHardSwitchOn(transTo, _sensor);
-							}
-						}
-
-						if( msgType == V_SCENE_ON ) {
-							theSys.ChangeLampScenario(transTo, payload[0], replyTo, _sensor);
-						}	else if(!lv_skip) {
-							// Transfer message
-							msg.build(replyTo, transTo, _sensor, C_SET, msgType, _needAck, _bIsAck, true);
-							// Keep payload unchanged
+				/////////////////// add by zql for airconditioning//////////////////////////////////////////////////////////////
+				else if(msgType == V_CURRENT)
+				{
+					theSys.UpdateNodeList(replyTo,_sensor);
+					if(payl_len >= 2)
+					{ // electric current change msg
+						uint16_t eCurrent = payload[1]<<8 | payload[0];
+						UC lv_nNodeID = msg.getSender();
+						LOGD(LOGTAG_MSG, "Recv nd:%d current msg:%d",lv_nNodeID,eCurrent);
+						theACManager.UpdateACCurrentByNodeid(lv_nNodeID,eCurrent);
+					}
+				}
+				else if(msgType == V_KWH)
+				{
+					theSys.UpdateNodeList(replyTo,_sensor);
+					if(payl_len >= 9)
+					{
+						uint32_t eQuantity = 0;
+						memcpy(&eQuantity,&payload[0],4);
+						uint16_t eqindex = payload[5]<<8 | payload[4];
+						uint16_t eCurrent = payload[7]<<8 | payload[6];
+						uint8_t bReset = payload[8];
+						UC lv_nNodeID = msg.getSender();
+						LOGD(LOGTAG_MSG, "Recv eq msg,nd:%d,eq:%d,index=%d,current:%d,reset:%d",lv_nNodeID,eQuantity,eqindex,eCurrent,bReset);
+						theACManager.UpdateACByNodeid(lv_nNodeID,eCurrent,eQuantity,eqindex,bReset);
+						if(_needAck)
+						{
+							msg.build(transTo, replyTo, _sensor, C_REQ, msgType, 0, 1, true);
 							msgReady = true;
 						}
 					}
+					else if(payl_len >= 4)
+					{ // electric current change msg
+						uint16_t eQuantity = payload[1]<<8 | payload[0];
+						uint16_t eqindex = payload[3]<<8 | payload[2];
+						uint16_t eCurrent = payload[5]<<8 | payload[4];
+						UC lv_nNodeID = msg.getSender();
+						LOGD(LOGTAG_MSG, "Recv eq msg,nd:%d,eq:%d,index=%d,current:%d",lv_nNodeID,eQuantity,eqindex,eCurrent);
+						theACManager.UpdateACByNodeid(lv_nNodeID,eCurrent,eQuantity,eqindex);
+					}
 				}
+				else if(msgType == V_HVAC_FLOW_STATE)
+				{
+					theSys.UpdateNodeList(replyTo,_sensor);
+					if(payl_len >= 4)
+					{ // electric current change msg
+						uint8_t onoff = payload[0];
+						uint8_t mode = payload[1];
+						uint8_t temp = payload[2];
+						uint8_t fanlevel = payload[3];
+						UC lv_nNodeID = msg.getSender();
+						LOGD(LOGTAG_MSG, "Recv acstatus msg,nd:%d,onoff:%d,mode=%d,temp:%d,fanlevel:%d",onoff,mode,temp,fanlevel);
+						theACManager.UpdateACStatusByNodeid(lv_nNodeID,onoff,mode,temp,fanlevel);
+					}
+				}
+				/////////////////// add by zql for airconditioning end//////////////////////////////////////////////////////////
+				break;
+
+			case C_SET:
 				break;
 
 	    default:

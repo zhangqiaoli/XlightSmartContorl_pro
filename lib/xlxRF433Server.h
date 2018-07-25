@@ -15,6 +15,7 @@ public:
 
   bool ServerBegin(uint8_t channel,uint8_t address);
   bool EnableRFIRQ();
+  bool ChangeNodeID(const uint8_t bNodeID);
 
   bool ProcessSend(const UC _node, const UC _msgID, String &strPayl, MyMessage &my_msg, const UC _replyTo, const UC _sensor = 0);
   bool ProcessSend(String &strMsg, MyMessage &my_msg, const UC _replyTo = 0, const UC _sensor = 0);

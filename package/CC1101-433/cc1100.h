@@ -15,7 +15,7 @@
 /*----------------------[CC1100 - misc]---------------------------------------*/
 #define CRYSTAL_FREQUENCY         26000000
 #define CFG_REGISTER              0x2F  //47 registers
-#define FIFOBUFFER                0x42  //size of Fifo Buffer
+#define FIFOBUFFER                0x40  //size of Fifo Buffer
 #define RSSI_OFFSET_868MHZ        0x4E  //dec = 74
 #define TX_RETRIES_MAX            0x05  //tx_retries_max
 #define ACK_TIMEOUT                600  //ACK timeout in ms

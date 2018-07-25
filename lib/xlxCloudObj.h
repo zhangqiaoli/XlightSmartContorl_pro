@@ -6,6 +6,7 @@
 #include "xliCommon.h"
 #include "ArduinoJson.h"
 #include "LinkedList.h"
+#include "MoveAverage.h"
 
 // Comment it off if we don't use Particle public cloud
 /// Notes:
@@ -26,32 +27,6 @@
 #define CLF_JSONCommand         "JSONCommand"     // Can also be a Particle Object
 #define CLF_JSONConfig          "JSONConfig"      // Can also be a Particle Object
 #define CLF_SetCurTime          "SetCurTime"
-
-// Publish topics, notes:
-// 1. For Particle cloud the publishing speed is about 1 event per sec.
-// 2. The length of the topic is limited to a max of 63 characters.
-// 3. The maximum length of data is 255 bytes.
-/// Alarm event
-#define CLT_ID_Alarm            1
-#define CLT_NAME_Alarm          "xlc-event-alarm"
-#define CLT_TTL_Alarm           1800              // 0.5 hour
-/// Sensor data update
-#define CLT_ID_SensorData       2
-#define CLT_NAME_SensorData     "xlc-data-sensor"
-#define CLT_TTL_SensorData      RTE_DELAY_PUBLISH
-#define CLT_TTL_MotionData      5
-/// LOG Message
-#define CLT_ID_LOGMSG           3
-#define CLT_NAME_LOGMSG         "xlc-event-log"
-#define CLT_TTL_LOGMSG          3600              // 1 hour
-/// Device status event
-#define CLT_ID_DeviceStatus     4
-#define CLT_NAME_DeviceStatus   "xlc-status-device"
-#define CLT_TTL_DeviceStatus    10
-/// Device profile event
-#define CLT_ID_DeviceConfig     5
-#define CLT_NAME_DeviceConfig   "xlc-config-device"
-#define CLT_TTL_DeviceConfig    30
 
 typedef struct
 {
@@ -85,6 +60,27 @@ public:
   String m_tzString;
   String m_lastMsg;
   String m_strCldCmd;
+
+  // Sensor Data from Controller
+  CMoveAverage m_sysTemp;
+  CMoveAverage m_sysHumi;
+
+  // Sensor Data from Node
+  nd_float_t m_temperature;
+  nd_float_t m_humidity;
+  nd_us_t m_brightness;
+  nd_uc_t m_motion;
+  nd_uc_t m_irKey;
+  nd_us_t m_gas;
+  nd_us_t m_smoke;
+  nd_uc_t m_sound;
+  nd_us_t m_noise;
+  nd_us_t m_pm25;
+  nd_us_t m_pm10;
+  nd_float_t m_tvoc;
+  nd_float_t m_ch2o;
+  nd_us_t m_co2;
+
 public:
   CloudObjClass();
 
@@ -99,11 +95,23 @@ public:
   virtual void OnSensorDataChanged(const UC _sr, const UC _nd) = 0;
   int ProcessJSONString(const String& inStr);
 
-  BOOL PublishLog(const char *msg);
-  BOOL PublishDeviceStatus(const char *msg);
-  BOOL PublishDeviceConfig(const char *msg);
+  BOOL UpdateDHT(uint8_t nid, float _temp, float _humi);
+  BOOL UpdateBrightness(uint8_t nid, uint8_t value);
+  BOOL UpdateMotion(uint8_t nid, uint8_t sensor, uint8_t value);
+  BOOL UpdateGas(uint8_t nid, uint16_t value);
+  BOOL UpdateDust(uint8_t nid, uint16_t value);
+  BOOL UpdateSmoke(uint8_t nid, uint16_t value);
+  BOOL UpdateSound(uint8_t nid, uint8_t value);
+  BOOL UpdateNoise(uint8_t nid, uint16_t value);
+  BOOL UpdateAirQuality(uint8_t nid, uint16_t pm25,uint16_t pm10,float tvoc,float ch2o,uint16_t co2);
+
+  BOOL PublishMsg(uint8_t msgType,const char *msg,uint8_t len,uint8_t nid=0xff,UC bNeedReplace=0);
+  //BOOL PublishDeviceStatus(const char *msg,uint8_t len);
+  //BOOL PublishDeviceConfig(const char *msg,uint8_t len);
+  //BOOL PublishACDeviceStatus(const char *msg,uint8_t len);
+
   void GotNodeConfigAck(const UC _nodeID, const UC *data);
-  BOOL PublishAlarm(const char *msg);
+  //BOOL PublishAlarm(const char *msg);
 
 protected:
   void InitCloudObj();

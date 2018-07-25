@@ -70,8 +70,17 @@ void SysteTimerCB()
   // High speed non-block process
 	if (++fastTick > RTE_TICK_FASTPROCESS) {
 		fastTick = 0;
+  	theSys.FastProcess();
 
 	}
+}
+
+void network_status_handler(system_event_t event, int param)
+{
+}
+void cloud_status_handler(system_event_t event, int param)
+{
+	theSys.OnCloudStatusChanged();
 }
 
 // Set "manual" mode
@@ -84,11 +93,23 @@ void setup()
 	WiFi.listen(false);
   // System Initialization
   theSys.Init();
+#ifdef SYS_TEST
+	theSys.InitCloudObj();
+	Particle.connect();
+	waitFor(Particle.connected, 5000);
+#endif
+  // Load Configuration
+  theConfig.LoadConfig();
+  theSys.LoadStatusData();
+	// Initialize Pins
+  theSys.InitPins();
+
 	// Initialization Radio Interfaces
 	theSys.InitRadio();
-	noInterrupts();
-	// Load Configuration
-  theConfig.LoadConfig();
+
+	// register the network_status and cloud_status event
+	//System.on(network_status, network_status_handler);
+	//System.on(cloud_status, cloud_status_handler);
 
 	// Open Wi-Fi
 	if( theConfig.GetDisableWiFi() ) {
@@ -104,11 +125,12 @@ void setup()
   theConsole.Init();
   // Start system timer: callback every n * 0.5ms using hmSec timescale
   //Use TIMER6 to retain PWM capabilities on all pins
-  sysTimer.begin(SysteTimerCB, RTE_DELAY_SYSTIMER, uSec, TIMER6);
+  sysTimer.begin(SysteTimerCB, RTE_DELAY_SYSTIMER, hmSec, TIMER6);
 
 	if( !theConfig.GetDisableWiFi() ) {
 		while(1) {
-			if( !WiFi.hasCredentials()/* || !theConfig.GetWiFiStatus() */) {
+#if XLIGHT_EDITION_ID != XLIGHT_CLASSROOM_EDITION
+			if( !WiFi.hasCredentials() || !theConfig.GetWiFiStatus() ) {
 				if( !theSys.connectWiFi() ) {
 					// get credential from BLE or Serial
 					SERIAL_LN("will enter listening mode");
@@ -116,6 +138,7 @@ void setup()
 					break;
 				}
 			}
+#endif
 
 			// Connect to Wi-Fi
 			SERIAL_LN("will connect WiFi");
@@ -124,17 +147,7 @@ void setup()
 					Particle.disconnect();
 				} else {
 					// Connect to the Cloud
-					if( !theSys.connectCloud() ) {
-						if( theConfig.GetUseCloud() == CLOUD_MUST_CONNECT ) {
-							// Must connect to the Cloud
-							continue;
-						}
-					}
-				}
-			} else {
-				if( theConfig.GetUseCloud() == CLOUD_MUST_CONNECT ) {
-					// Must have network
-					continue;
+					theSys.connectCloud();
 				}
 			}
 			break;

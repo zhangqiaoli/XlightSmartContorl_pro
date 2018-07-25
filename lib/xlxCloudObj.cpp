@@ -27,6 +27,7 @@
 #include "xlxCloudObj.h"
 #include "xlxConfig.h"
 #include "xlxLogger.h"
+#include "xlxPublishQueue.h"
 
 //------------------------------------------------------------------
 // Xlight Cloud Object Class
@@ -37,6 +38,49 @@ CloudObjClass::CloudObjClass()
   m_SysVersion = "";
   m_nAppVersion = VERSION_CONFIG_DATA;
   m_SysStatus = STATUS_OFF;
+
+  m_temperature.node_id = 0;
+  m_temperature.data = 0.0;
+
+  m_humidity.node_id = 0;
+  m_humidity.data = 0.0;
+
+  m_brightness.node_id = 0;
+  m_brightness.data = 0;
+
+  m_motion.node_id = 0;
+  m_motion.data = false;
+
+  m_irKey.node_id = 0;
+  m_irKey.data = false;
+
+  m_sound.node_id = 0;
+  m_sound.data = false;
+
+  m_gas.node_id = 0;
+  m_gas.data = 0;
+
+
+  m_smoke.node_id = 0;
+  m_smoke.data = 0;
+
+  m_noise.node_id = 0;
+  m_noise.data = 0;
+
+  m_pm25.node_id = 0;
+  m_pm25.data = 0;
+
+  m_pm10.node_id = 0;
+  m_pm10.data = 0;
+
+  m_tvoc.node_id = 0;
+  m_tvoc.data = 0;
+
+  m_ch2o.node_id = 0;
+  m_ch2o.data = 0;
+
+  m_co2.node_id = 0;
+  m_co2.data = 0;
 
   m_strCldCmd = "";
 }
@@ -91,26 +135,285 @@ int CloudObjClass::CldJSONConfig(String jsonData)
   return 1;
 }
 
-// Publish LOG message and update cloud variable
-BOOL CloudObjClass::PublishLog(const char *msg)
+BOOL CloudObjClass::UpdateDHT(uint8_t nid, float _temp, float _humi)
 {
-  BOOL rc = true;
-  m_lastMsg = msg;
-  //if( !theConfig.GetDisableWiFi() ) {
-    if( Particle.connected() ) {
-      rc = Particle.publish(CLT_NAME_LOGMSG, msg, CLT_TTL_LOGMSG, PRIVATE);
+  static float preTemp = 255;
+  static float preHumi = 255;
+
+  if( _temp > 100 && (_humi > 100 || _humi < 0) ) return false;
+
+  BOOL temp_ok = false;
+  BOOL humi_ok = false;
+  if( nid > 0 ) {
+    if( _humi >= 0 && _humi <= 100 ) {
+      if( m_humidity.data != _humi || m_humidity.node_id != nid ) {
+        m_humidity.node_id = nid;
+        m_humidity.data = _humi;
+        humi_ok = true;
+      }
     }
-  //}
-  return rc;
+    if( _temp <= 100 ) {
+      if( m_temperature.data != _temp || m_temperature.node_id != nid )
+      {
+        m_temperature.node_id = nid;
+        m_temperature.data = _temp;
+        temp_ok = true;
+      }
+    }
+  } else {
+    if( _humi >= 0 && _humi <= 100 ) {
+      if( m_sysHumi.AddData(_humi) ) {
+        _humi = m_sysHumi.GetValue();
+        if( _humi != preHumi ) {
+          preHumi = _humi;
+          humi_ok = true;
+        }
+      }
+    }
+    if( _temp <= 100 ) {
+      if( m_sysTemp.AddData(_temp) ) {
+        _temp = m_sysTemp.GetValue();
+        if( _temp != preTemp ) {
+          preTemp = _temp;
+          temp_ok = true;
+        }
+      }
+    }
+  }
+
+  if( temp_ok ) OnSensorDataChanged(sensorDHT, nid);
+  if( humi_ok ) OnSensorDataChanged(sensorDHT_h, nid);
+
+  if( !theConfig.GetDisableWiFi() ) {
+    // Publis right away
+    if( Particle.connected() && (temp_ok || humi_ok) ) {
+      String strTemp;
+
+      // Temperature Message
+      if( humi_ok && _temp < 100 ) temp_ok = true;
+
+      if( temp_ok && humi_ok ) {
+        strTemp = String::format("{'nd':%d,'DHTt':%.2f,'DHTh':%.2f}", nid, _temp, _humi);
+      } else if( temp_ok ) {
+        strTemp = String::format("{'nd':%d,'DHTt':%.2f}", nid, _temp);
+      } else {
+        strTemp = String::format("{'nd':%d,'DHTh':%.2f}", nid, _humi);
+      }
+      theCloudQue.AddPublishMsg(CLT_ID_SensorData,strTemp.c_str(),strTemp.length(),nid);
+      //Particle.publish(CLT_NAME_SensorData, strTemp, CLT_TTL_SensorData, PRIVATE);
+    }
+  }
+
+  return true;
 }
 
-// Publish Device status
-BOOL CloudObjClass::PublishDeviceStatus(const char *msg)
+BOOL CloudObjClass::UpdateBrightness(uint8_t nid, uint8_t value)
+{
+  if( m_brightness.data != value || m_brightness.node_id != nid ) {
+    m_brightness.node_id = nid;
+    m_brightness.data = value;
+    OnSensorDataChanged(sensorALS, nid);
+    if( !theConfig.GetDisableWiFi() ) {
+      // Publis right away
+      if( Particle.connected() ) {
+        String strTemp = String::format("{'nd':%d,'ALS':%d}", nid, value);
+        theCloudQue.AddPublishMsg(CLT_ID_SensorData,strTemp.c_str(),strTemp.length(),nid);
+        //Particle.publish(CLT_NAME_SensorData, strTemp, CLT_TTL_MotionData, PRIVATE);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+BOOL CloudObjClass::UpdateMotion(uint8_t nid, uint8_t sensor, uint8_t value)
+{
+  if( sensor == S_MOTION || sensor == S_IR ) {
+    if( sensor == S_MOTION ) {
+      if( m_motion.data != value || m_motion.node_id != nid ) {
+        m_motion.node_id = nid;
+        m_motion.data = value;
+        OnSensorDataChanged(sensorPIR, nid);
+      }
+    } else if( sensor == S_IR ) {
+      if( m_irKey.data != value || m_irKey.node_id != nid ) {
+        m_irKey.node_id = nid;
+        m_irKey.data = value;
+        OnSensorDataChanged(sensorIRKey, nid);
+      }
+    }
+
+    if( !theConfig.GetDisableWiFi() ) {
+      // Publis right away
+      if( Particle.connected() ) {
+        String strTemp = String::format("{'nd':%d,'%s':%d}", nid, (sensor == S_MOTION ? "PIR" : "IRK"), value);
+        theCloudQue.AddPublishMsg(CLT_ID_SensorData,strTemp.c_str(),strTemp.length(),nid);
+        //Particle.publish(CLT_NAME_SensorData, strTemp, CLT_TTL_MotionData, PRIVATE);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+BOOL CloudObjClass::UpdateGas(uint8_t nid, uint16_t value)
+{
+  if( m_gas.data != value || m_gas.node_id != nid ) {
+    m_gas.node_id = nid;
+    m_gas.data = value;
+    OnSensorDataChanged(sensorGAS, nid);
+    if( !theConfig.GetDisableWiFi() ) {
+      // Publis right away
+      if( Particle.connected() ) {
+        String strTemp = String::format("{'nd':%d,'GAS':%d}", nid, value);
+        theCloudQue.AddPublishMsg(CLT_ID_SensorData,strTemp.c_str(),strTemp.length(),nid);
+        //Particle.publish(CLT_NAME_SensorData, strTemp, CLT_TTL_MotionData, PRIVATE);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+BOOL CloudObjClass::UpdateAirQuality(uint8_t nid, uint16_t pm25,uint16_t pm10,float tvoc,float ch2o,uint16_t co2)
+{
+	BOOL bNeedSendMsg = false;
+	if( m_pm25.data != pm25 || m_pm25.node_id != nid )
+		{
+			m_pm25.node_id = nid;
+			m_pm25.data = pm25;
+			OnSensorDataChanged(sensorPM25, nid);
+			bNeedSendMsg = true;
+		}
+		if( m_pm10.data != pm10 || m_pm10.node_id != nid )
+		{
+			m_pm10.node_id = nid;
+			m_pm10.data = pm10;
+			OnSensorDataChanged(sensorPM10, nid);
+			bNeedSendMsg = true;
+		}
+		if( m_tvoc.data != tvoc || m_tvoc.node_id != nid )
+		{
+			m_tvoc.node_id = nid;
+			m_tvoc.data = tvoc;
+			OnSensorDataChanged(sensorTVOC, nid);
+			bNeedSendMsg = true;
+		}
+		if( m_ch2o.data != ch2o || m_ch2o.node_id != nid )
+		{
+			m_ch2o.node_id = nid;
+			m_ch2o.data = ch2o;
+			OnSensorDataChanged(sensorCH2O, nid);
+			bNeedSendMsg = true;
+		}
+		if( m_co2.data != co2 || m_co2.node_id != nid )
+		{
+			m_co2.node_id = nid;
+			m_co2.data = co2;
+			OnSensorDataChanged(sensorCO2, nid);
+			bNeedSendMsg = true;
+		}
+
+
+		if( !theConfig.GetDisableWiFi() && bNeedSendMsg ) {
+			// Publis right away
+			if( Particle.connected() ) {
+				String strTemp = String::format("{'nd':%d,'PM25':%d,'PM10':%d,'TVOC':%.2f,'CH2O':%.2f,'CO2':%d}", nid,pm25,pm10,tvoc,ch2o,co2 );
+				//Particle.publish(CLT_NAME_SensorData, strTemp, CLT_TTL_MotionData, PRIVATE);
+        theCloudQue.AddPublishMsg(CLT_ID_SensorData,strTemp.c_str(),strTemp.length(),nid);
+			}
+		}
+		return true;
+}
+
+BOOL CloudObjClass::UpdateDust(uint8_t nid, uint16_t value)
+{
+  if( m_pm25.data != value || m_pm25.node_id != nid ) {
+    m_pm25.node_id = nid;
+    m_pm25.data = value;
+    OnSensorDataChanged(sensorPM25, nid);
+    if( !theConfig.GetDisableWiFi() ) {
+      // Publis right away
+      if( Particle.connected() ) {
+        String strTemp = String::format("{'nd':%d,'PM25':%d}", nid, value);
+        theCloudQue.AddPublishMsg(CLT_ID_SensorData,strTemp.c_str(),strTemp.length(),nid);
+        //Particle.publish(CLT_NAME_SensorData, strTemp, CLT_TTL_MotionData, PRIVATE);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+BOOL CloudObjClass::UpdateSmoke(uint8_t nid, uint16_t value)
+{
+  if( m_smoke.data != value || m_smoke.node_id != nid ) {
+    m_smoke.node_id = nid;
+    m_smoke.data = value;
+    OnSensorDataChanged(sensorSMOKE, nid);
+    if( !theConfig.GetDisableWiFi() ) {
+      // Publis right away
+      if( Particle.connected() ) {
+        String strTemp = String::format("{'nd':%d,'SMK':%d}", nid, value);
+        theCloudQue.AddPublishMsg(CLT_ID_SensorData,strTemp.c_str(),strTemp.length(),nid);
+        //Particle.publish(CLT_NAME_SensorData, strTemp, CLT_TTL_MotionData, PRIVATE);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+BOOL CloudObjClass::UpdateSound(uint8_t nid, uint8_t value)
+{
+  if( m_sound.data != value || m_sound.node_id != nid ) {
+    m_sound.node_id = nid;
+    m_sound.data = value;
+    OnSensorDataChanged(sensorMIC_b, nid);
+    if( !theConfig.GetDisableWiFi() ) {
+      // Publis right away
+      if( Particle.connected() ) {
+        String strTemp = String::format("{'nd':%d,'MIC':%d}", nid, value);
+        theCloudQue.AddPublishMsg(CLT_ID_SensorData,strTemp.c_str(),strTemp.length(),nid);
+        //Particle.publish(CLT_NAME_SensorData, strTemp, CLT_TTL_MotionData, PRIVATE);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+BOOL CloudObjClass::UpdateNoise(uint8_t nid, uint16_t value)
+{
+  if( m_noise.data != value || m_noise.node_id != nid ) {
+    m_noise.node_id = nid;
+    m_noise.data = value;
+    OnSensorDataChanged(sensorMIC, nid);
+    if( !theConfig.GetDisableWiFi() ) {
+      // Publis right away
+      if( Particle.connected() ) {
+        String strTemp = String::format("{'nd':%d,'NOS':%d}", nid, value);
+        theCloudQue.AddPublishMsg(CLT_ID_SensorData,strTemp.c_str(),strTemp.length(),nid);
+        //Particle.publish(CLT_NAME_SensorData, strTemp, CLT_TTL_MotionData, PRIVATE);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+// Publish LOG message and update cloud variable
+BOOL CloudObjClass::PublishMsg(uint8_t msgType,const char *msg,uint8_t len,uint8_t nid,UC bNeedReplace)
 {
   BOOL rc = true;
+  if(msgType == CLT_ID_LOGMSG)
+  {
+    m_lastMsg = msg;
+  }
   if( !theConfig.GetDisableWiFi() ) {
     if( Particle.connected() ) {
-      rc = Particle.publish(CLT_NAME_DeviceStatus, msg, CLT_TTL_DeviceStatus, PRIVATE);
+      //rc = Particle.publish(CLT_NAME_LOGMSG, msg, CLT_TTL_LOGMSG, PRIVATE);
+      theCloudQue.AddPublishMsg(msgType,msg,len,nid,bNeedReplace);
     }
   }
 
@@ -124,33 +427,8 @@ void CloudObjClass::GotNodeConfigAck(const UC _nodeID, const UC *data)
   strTemp = String::format("{'nd':%d,'ver':%d,'tp':%d,'senMap':%d,'funcMap':%d,'data':[%d,%d,%d,%d,%d,%d]}",
 			 _nodeID, data[0], data[1],	data[2] + data[3]*256, data[4] + data[5]*256,
        data[6], data[7], data[8], data[9], data[10], data[11]);
-	PublishDeviceConfig(strTemp.c_str());
-}
-
-// Publish Device Config
-BOOL CloudObjClass::PublishDeviceConfig(const char *msg)
-{
-  BOOL rc = true;
-  if( !theConfig.GetDisableWiFi() ) {
-    if( Particle.connected() ) {
-      rc = Particle.publish(CLT_NAME_DeviceConfig, msg, CLT_TTL_DeviceConfig, PRIVATE);
-    }
-  }
-
-  return rc;
-}
-
-// Publish Alarm
-BOOL CloudObjClass::PublishAlarm(const char *msg)
-{
-  BOOL rc = true;
-  if( !theConfig.GetDisableWiFi() ) {
-    if( Particle.connected() ) {
-      rc = Particle.publish(CLT_NAME_Alarm, msg, CLT_TTL_Alarm, PRIVATE);
-    }
-  }
-
-  return rc;
+  PublishMsg(CLT_ID_DeviceConfig,strTemp.c_str(),strTemp.length(),_nodeID);
+	//PublishDeviceConfig(strTemp.c_str(),strTemp.length());
 }
 
 // Concatenate string with regard to the length limitation of cloud API

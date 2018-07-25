@@ -45,6 +45,7 @@ typedef struct
 {
   UC nid;                                   // NodeID
   UC subID;                                 // SubID
+  UC devType;                               // DevType
 } HardKeyMap_t;
 
 typedef struct
@@ -179,7 +180,7 @@ typedef struct    // Exact 16 bytes
   UC identity[LEN_NODE_IDENTITY];
   UL recentActive;
   UC sid;         // SubID
-  UC cfgPos;      // Config storage position
+  UC type;      // sensor type
 } NodeIdRow_t;
 
 inline BOOL isIdentityEmpty(UC *pId, UC nLen = LEN_NODE_IDENTITY)
@@ -318,15 +319,13 @@ public:
   };
   int getMemSize();
   int getFlashSize();
+  BOOL LoadNodeFlash(uint32_t startAddr,uint16_t len);
   bool loadList();
   bool saveList();
   void showList(BOOL toCloud = false, UC nid = 0);
   void publishNode(NodeIdRow_t _node);
-  UC requestNodeID(UC preferID, char type, uint64_t identity);
   BOOL clearNodeId(UC nodeID);
 
-protected:
-  UC getAvailableNodeId(UC preferID, UC defaultID, UC minID, UC maxID, uint64_t identity);
 };
 
 //------------------------------------------------------------------
@@ -496,10 +495,10 @@ public:
   BOOL SetRelayKey(const UC _code, const UC _on);
 
   UC GetKeyMapItem(const UC _key, UC *_subID = NULL);
-  BOOL SetKeyMapItem(const UC _key, const UC _nid, const UC _subID = 0);
+  BOOL SetKeyMapItem(const UC _key, const UC _nid, const UC _subID = 0,const UC _type = 0);
   UC SearchKeyMapItem(const UC _nid, const UC _subID = 0);
   BOOL IsKeyMapItemAvalaible(const UC _code);
-  bool IsKeyMatchedItem(const UC _code, const UC _nid, const UC _subID = 0);
+  bool IsKeyMatchedItem(const UC _code, const UC _nid, const UC _subID = 0,const UC _devType = 0);
   void showKeyMap();
   UC GetKeyOnNum();
 

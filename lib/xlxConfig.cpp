@@ -41,6 +41,7 @@
 #include "xlxPanel.h"
 #include "xlxRF433Server.h"
 #include "xlSmartController.h"
+#include "xlxPublishQueue.h"
 
 using namespace Flashee;
 
@@ -60,52 +61,53 @@ int NodeListClass::getFlashSize()
 	return(min(sizeof(NodeIdRow_t) * _size, MEM_NODELIST_LEN));
 }
 
-// Load node list from EEPROM
-bool NodeListClass::loadList()
+BOOL NodeListClass::LoadNodeFlash(uint32_t startAddr,uint16_t len)
 {
-	NodeIdRow_t lv_Node;
-	memset(&lv_Node,0x00,sizeof(NodeIdRow_t));
-	bool bEEPROMLoadRet = true;
-	for(int i = 0; i < theConfig.GetNumNodes(); i++) {
-		int offset = MEM_NODELIST_OFFSET + i * sizeof(NodeIdRow_t);
-		if( offset >= MEM_NODELIST_OFFSET + MEM_NODELIST_LEN - sizeof(NodeIdRow_t) ) break;
-
-		EEPROM.get(offset, lv_Node);
-		// Initialize two preset nodes
-		if( i == 0 ) {
-			if( lv_Node.nid != NODEID_MAINDEVICE ) {
-				bEEPROMLoadRet = false;
-				lv_Node.nid = NODEID_MAINDEVICE;
-				resetIdentity(lv_Node.identity);
-				lv_Node.device = 0;
-				lv_Node.recentActive = 0;
-				m_isChanged = true;
-			}
-		} else if(  i == 1 )
+	NodeIdRow_t NodeArray[MAX_NODE_PER_CONTROLLER];
+	if (sizeof(NodeIdRow_t)*MAX_NODE_PER_CONTROLLER <= len)
+	{
+		if (theConfig.getP1Flash()->read<NodeIdRow_t[MAX_NODE_PER_CONTROLLER]>(NodeArray, startAddr))
+		{
+			for (int i = 0; i < theConfig.GetNumNodes(); i++) //interate through RuleArray for non-empty rows
 			{
-				if(!bEEPROMLoadRet || theConfig.GetNumNodes() <= 2 )
-					{ //eeprom node info false,use default
-						if( lv_Node.nid != NODEID_MIN_REMOTE ) {
-							lv_Node.nid = NODEID_MIN_REMOTE;
-							resetIdentity(lv_Node.identity);
-							lv_Node.device = NODEID_MAINDEVICE;
-							lv_Node.recentActive = 0;
-							m_isChanged = true;
-						}
-					}
-
-		} else if( lv_Node.nid == NODEID_DUMMY || lv_Node.nid == 0 ) {
-			theConfig.SetNumNodes(count());
-			break;
+				if ((NodeArray[i].nid != 0xFF && NodeArray[i].nid != 0) && add(&NodeArray[i]) > 0)
+				{
+					LOGW(LOGTAG_MSG, "Node row %d success load nodeid=%d from flash %d", i,NodeArray[i].nid,startAddr);
+				}
+				else
+				{
+					LOGW(LOGTAG_MSG, "Node row %d failed to load from flash %d", i,startAddr);
+					return false;
+				}
+			}
 		}
-		if( add(&lv_Node) < 0 ) break;
 		else
 		{
-			Serial.printlnf("add node=%d success",lv_Node.nid);
+			LOGW(LOGTAG_MSG, "Failed to read the node list from flash %d",startAddr);
+			return false;
 		}
 	}
-	//saveList();
-	return bEEPROMLoadRet;
+	else
+	{
+		LOGW(LOGTAG_MSG, "Failed to load node list, too large.");
+		return false;
+	}
+	return true;
+}
+
+bool NodeListClass::loadList()
+{
+	BOOL rc = LoadNodeFlash(MEM_NODELIST_OFFSET,MEM_NODELIST_LEN);
+	if( rc ) {
+		LOGD(LOGTAG_MSG, "NodeList loaded - %d", count());
+	} else {
+		rc = LoadNodeFlash(MEM_NODELIST_BACKUP_OFFSET,MEM_NODELIST_BACKUP_LEN);
+		if(rc)
+		{
+			LOGD(LOGTAG_MSG, "NodeList backup loaded - %d", count());
+		}
+	}
+	return rc;
 }
 
 bool NodeListClass::saveList()
@@ -122,8 +124,22 @@ bool NodeListClass::saveList()
 		NodeIdRow_t lv_buf[MAX_NODE_PER_CONTROLLER];
 		memset(lv_buf, 0x00, sizeof(lv_buf));
 		memcpy(lv_buf, _pItems, sizeof(NodeIdRow_t) * count());
-		EEPROM.put(MEM_NODELIST_OFFSET, lv_buf);
+		//EEPROM.put(MEM_NODELIST_OFFSET, lv_buf);
 		uint8_t attemps = 0;
+		while(++attemps <=3 )
+		{
+			if(theConfig.getP1Flash()->write<NodeIdRow_t[MAX_NODE_PER_CONTROLLER]>(lv_buf, MEM_NODELIST_OFFSET))
+			{
+				LOGN(LOGTAG_MSG, "write nodelist success!");
+				ret = true;
+				break;
+			}
+			else
+			{
+				LOGW(LOGTAG_MSG,"write nodelist failed! tried=%d",attemps);
+			}
+		}
+		attemps = 0;
 		while(++attemps <=3 )
 		{
 			if(theConfig.getP1Flash()->write<NodeIdRow_t[MAX_NODE_PER_CONTROLLER]>(lv_buf, MEM_NODELIST_BACKUP_OFFSET))
@@ -151,7 +167,7 @@ void NodeListClass::publishNode(NodeIdRow_t _node)
 	strTemp = String::format("{'nd':%d,'mac':'%s','device':%d,'recent':%d}", _node.nid,
 			PrintMacAddress(strDisplay, _node.identity, false), _node.device,
 			(_node.recentActive > 0 ? lv_now - _node.recentActive : -1));
-	theSys.PublishDeviceConfig(strTemp.c_str());
+	theSys.PublishMsg(CLT_ID_DeviceConfig,strTemp.c_str(),strTemp.length(),_node.nid);
 }
 
 void NodeListClass::showList(BOOL toCloud, UC nid)
@@ -192,135 +208,8 @@ void NodeListClass::showList(BOOL toCloud, UC nid)
 
 	if( toCloud ) {
 		strTemp = strTemp + "]}";
-		theSys.PublishDeviceConfig(strTemp.c_str());
+		theSys.PublishMsg(CLT_ID_DeviceConfig,strTemp.c_str(),strTemp.length());
 	}
-}
-
-// Get a new NodeID
-UC NodeListClass::requestNodeID(UC preferID, char type, uint64_t identity)
-{
-	// Must provide identity
-	if( identity == 0 ) return 0;
-
-	UC nodeID = 0;		// error
-	if( IS_GROUP_NODEID(preferID) && type == NODE_TYP_LAMP ) {
-		nodeID = preferID;
-	} else if( IS_SPECIAL_NODEID(preferID) && type == NODE_TYP_SYSTEM ) {
-		nodeID = preferID;
-	} else {
-		switch( type ) {
-		case NODE_TYP_LAMP:
-			// 1, 8 - 63
-			/// Check Main DeviceID
-			nodeID = getAvailableNodeId(IS_NOT_DEVICE_NODEID(preferID) ? NODEID_DUMMY : preferID,
-			 					NODEID_MAINDEVICE, NODEID_MIN_DEVCIE, NODEID_MAX_DEVCIE, identity);
-			break;
-
-		case NODE_TYP_REMOTE:
-			// 64 - 127
-			nodeID = getAvailableNodeId(IS_NOT_REMOTE_NODEID(preferID) ? NODEID_DUMMY : preferID,
-								NODEID_MIN_REMOTE, NODEID_MIN_REMOTE+1, NODEID_MAX_REMOTE, identity);
-			break;
-
-		case NODE_TYP_THIRDPARTY:
-			// ToDo: support thirdparty device in the future
-			break;
-
-		default:
-			break;
-		}
-	}
-
-	// Add or Update
-	if( nodeID > 0 ) {
-		NodeIdRow_t lv_Node;
-		lv_Node.nid = nodeID;
-		copyIdentity(lv_Node.identity, &identity);
-		lv_Node.recentActive = Time.now();
-		lv_Node.device = 0;
-		UC oldCnt = count();
-		add(&lv_Node);
-		if( count() > oldCnt && nodeID <= NODEID_MAX_DEVCIE ) {
-			// Functional device added
-			theConfig.SetNumDevices(theConfig.GetNumDevices() + 1);
-		}
-		theConfig.SetNumNodes(count());
-		m_isChanged = true;
-
-		if( type == NODE_TYP_LAMP ) {
-			if( theConfig.InitDevStatus(nodeID) ) {
-				theConfig.SetDSTChanged(true);
-				//ToDo: remove
-				SERIAL_LN("Test DevStatus_table added item: %d, size: %d", nodeID, theSys.DevStatus_table.size());
-			}
-		}
-
-		publishNode(lv_Node);
-	}
-	return nodeID;
-}
-
-UC NodeListClass::getAvailableNodeId(UC preferID, UC defaultID, UC minID, UC maxID, uint64_t identity)
-{
-	UC oldestNode = 0;
-	UL oldestTime = Time.now();
-	NodeIdRow_t lv_Node;
-
-	// Stage 1: Check preferID
-	if( preferID > 0 && preferID < NODEID_DUMMY ) {
-		lv_Node.nid = preferID;
-		if( get(&lv_Node) >= 0 ) {
-			// preferID is found and matched, reuse it
-			if( lv_Node.recentActive == 0 || isIdentityEmpty(lv_Node.identity) || isIdentityEqual(lv_Node.identity, &identity) ) {
-				return preferID;
-			} else {
-				// Otherwise, avoid use it
-				if( theConfig.IsFixedNID() ) return 0;
-			}
-		} else {
-			// Not found, means ID available
-			return(theConfig.IsFixedNID() ? 0 : preferID);
-		}
-	}
-
-	// Stage 2: Check DefaultID
-	if( defaultID > 0 ) {
-		lv_Node.nid = defaultID;
-		if( get(&lv_Node) >= 0 ) {
-			if( lv_Node.recentActive == 0 || isIdentityEmpty(lv_Node.identity) || isIdentityEqual(lv_Node.identity, &identity) ) {
-				// DefaultID is available
-				return defaultID;
-			} else {
-				oldestNode = defaultID;
-				oldestTime = lv_Node.recentActive;
-			}
-		}
-	}
-
-	// Stage 3: Check Identity and reuse if possible
-	for(int i = 0; i < count(); i++) {
-		if( _pItems[i].nid > maxID ) break;
-		if( _pItems[i].nid < minID ) continue;
-
-		if( isIdentityEqual(_pItems[i].identity, &identity) ) {
-			// Return matched item
-			return _pItems[i].nid;
-		} else if( oldestNode == 0 || oldestTime > _pItems[i].recentActive ) {
-			// Update inactive record
-			oldestNode = _pItems[i].nid;
-			oldestTime = _pItems[i].recentActive;
-		}
-	}
-
-	// Stage 4: Otherwise, get a unused NodeID from corresponding segment
-	for( UC nodeID = minID; nodeID <= maxID; nodeID++ ) {
-		lv_Node.nid = nodeID;
-		// Seek unused NodeID
-		if( get(&lv_Node) < 0 ) return nodeID;
-	}
-
-	// Stage 5: Otherwise, overwrite the longest inactive entry within the segment
-	return oldestNode;
 }
 
 BOOL NodeListClass::clearNodeId(UC nodeID)
@@ -335,13 +224,13 @@ BOOL NodeListClass::clearNodeId(UC nodeID)
 		lv_Node.device = 0;
 		lv_Node.recentActive = 0;
 		update(&lv_Node);
-	} else if ( nodeID < NODEID_MIN_DEVCIE ) {
+	} else if ( nodeID < NODEID_MIN_LAMP ) {
 		return false;
 	} else {
 		// remove item
 		lv_Node.nid = nodeID;
 		remove(&lv_Node);
-		if( nodeID >= NODEID_MIN_DEVCIE && nodeID <= NODEID_MAX_DEVCIE ) {
+		if( nodeID >= NODEID_MIN_LAMP && nodeID <= NODEID_MAX_LAMP ) {
 			theConfig.SetNumDevices(theConfig.GetNumDevices() - 1);
 		}
 		theConfig.SetNumNodes(count());
@@ -396,8 +285,9 @@ void ConfigClass::InitConfig()
 	//m_config.rfDataRate = RF24_DATARATE;
 	m_config.maxBaseNetworkDuration = MAX_BASE_NETWORK_DUR;
 	m_config.disableWiFi = 0;
-	m_config.disableLamp = 1;
-	m_config.useCloud = CLOUD_ENABLE;
+	m_config.disableLamp = 0;
+	m_config.enHWSwitch = 1;
+	m_config.useCloud = CLOUD_MUST_CONNECT;
 	m_config.stWiFi = 1;
 	m_config.bcMsgRtpTimes = 3;
 	m_config.ndMsgRtpTimes = 1;
@@ -1205,12 +1095,13 @@ UC ConfigClass::GetKeyMapItem(const UC _key, UC *_subID)
 	return 0;
 }
 
-BOOL ConfigClass::SetKeyMapItem(const UC _key, const UC _nid, const UC _subID)
+BOOL ConfigClass::SetKeyMapItem(const UC _key, const UC _nid, const UC _subID,const UC _type)
 {
 	if( _key > 0 && _key <= MAX_KEY_MAP_ITEMS ) {
 		if( m_config.keyMap[_key - 1].nid != _nid || m_config.keyMap[_key - 1].subID != _subID ) {
 			m_config.keyMap[_key - 1].nid = _nid;
 			m_config.keyMap[_key - 1].subID = _subID;
+			m_config.keyMap[_key - 1].devType = _type;
 			m_isChanged = true;
 			return true;
 		}
@@ -1230,14 +1121,17 @@ UC ConfigClass::SearchKeyMapItem(const UC _nid, const UC _subID)
 	return 0;
 }
 
-bool ConfigClass::IsKeyMatchedItem(const UC _code, const UC _nid, const UC _subID)
+bool ConfigClass::IsKeyMatchedItem(const UC _code, const UC _nid, const UC _subID,const UC _devType)
 {
 	if( IsKeyMapItemAvalaible(_code) ) {
 		if( _nid == 0 ) return true;
 
 		if( m_config.keyMap[_code].nid == _nid || _nid == NODEID_DUMMY ) {
-			if( _subID == 0 ) return true;
-			if( m_config.keyMap[_code].subID & _subID ) return true;
+			if(m_config.keyMap[_code].devType == _devType || _devType == 0)
+			{
+				if( _subID == 0 ) return true;
+				if( m_config.keyMap[_code].subID & _subID ) return true;
+			}
 		}
 	}
 	return false;
@@ -1248,8 +1142,8 @@ void ConfigClass::showKeyMap()
 	SERIAL_LN("\n\r**Harware Key Map**");
 	for( UC _code = 0; _code < MAX_KEY_MAP_ITEMS; _code++ ) {
 		if( m_config.keyMap[_code].nid > 0 ) {
-			SERIAL_LN("Key%d: %d-%d %s", _code + 1, m_config.keyMap[_code].nid,
-					m_config.keyMap[_code].subID,
+			SERIAL_LN("Key%d: %d-%d-%d %s", _code + 1, m_config.keyMap[_code].nid,
+					m_config.keyMap[_code].subID,m_config.keyMap[_code].devType,
 					theSys.relay_get_key(_code + 1) ? "on" : "off");
 		}
 	}
@@ -1284,6 +1178,7 @@ BOOL ConfigClass::ExecuteBtnAction(const UC _btn, const UC _opt)
 {
 	UC _key;
 	bool _st;
+	BOOL rc=false;
 	if( _btn < MAX_NUM_BUTTONS && _opt < MAX_BTN_OP_TYPE ) {
 		if( m_config.btnAction[_btn][_opt].keyMap > 0 ) {
 			// scan key map and act on keys one by one
@@ -1305,11 +1200,13 @@ BOOL ConfigClass::ExecuteBtnAction(const UC _btn, const UC _opt)
 
 				}
 			}
-			return true;
+			rc = true;
 		}
 	}
-
-	return false;
+	//SERIAL_LN("test: btn:%d opt:%d", _btn+1, _opt+1);
+	theSys.m_action[_btn] = _opt+1;
+	theSys.m_actionchanged = 1;
+	return rc;
 }
 
 void ConfigClass::showButtonActions()
@@ -1386,43 +1283,6 @@ BOOL ConfigClass::LoadBackupConfig()
 #else
 	return false;
 #endif
-}
-
-BOOL ConfigClass::LoadBackupNodeList()
-{
-#ifdef MCU_TYPE_P1
-	NodeIdRow_t NodeArray[MAX_NODE_PER_CONTROLLER];
-	if (sizeof(NodeIdRow_t)*MAX_NODE_PER_CONTROLLER <= MEM_NODELIST_BACKUP_LEN)
-	{
-		if (P1Flash->read<NodeIdRow_t[MAX_NODE_PER_CONTROLLER]>(NodeArray, MEM_NODELIST_BACKUP_OFFSET))
-		{
-			for (int i = 0; i < theConfig.GetNumNodes(); i++) //interate through RuleArray for non-empty rows
-			{
-					if (lstNodes.add(&NodeArray[i]) < 0)
-					{
-						LOGW(LOGTAG_MSG, "Backup node row %d failed to load from flash", i);
-						return false;
-					}
-					else
-					{
-						LOGW(LOGTAG_MSG, "Backup node row %d success to load from flash-nodeid=%d", i,NodeArray[i].nid);
-					}
-			}
-		}
-		else
-		{
-			LOGW(LOGTAG_MSG, "Failed to read the backup node list from flash.");
-			return false;
-		}
-	}
-	else
-	{
-		LOGW(LOGTAG_MSG, "Failed to load backup node list, too large.");
-		return false;
-	}
-#endif
-
-	return true;
 }
 
 BOOL ConfigClass::SaveBackupConfig()
@@ -1739,13 +1599,8 @@ BOOL ConfigClass::LoadNodeIDList()
 {
 	BOOL rc = lstNodes.loadList();
 	if( rc ) {
-		LOGD(LOGTAG_MSG, "NodeList loaded - %d", lstNodes.count());
-	} else {
-		LOGW(LOGTAG_MSG, "Failed to load NodeList.");
-		rc = LoadBackupNodeList();
+		m_isChanged = true;
 	}
-	m_isChanged = true;
-	lstNodes.saveList();
 	return rc;
 }
 

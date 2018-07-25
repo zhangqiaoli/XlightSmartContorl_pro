@@ -177,7 +177,7 @@ uint8_t CFastMessageQ::AddMessage(const uint8_t *f_data, uint8_t f_len, uint8_t 
   uint8_t cmpRet = 0;
   // Lock Queue
 	LockQueue();
-	
+
 
   if( !m_bDupMsg ) {
     // Skip duplicated message
@@ -244,22 +244,25 @@ bool CFastMessageQ::RemoveMessage(CFastMessageNode *pNode)
 	LockQueue();
 
 	if( pNode == NULL ) pNode = m_pQHead;
-  if( pNode != m_pQTail && m_iQLength > 0 ) {
+  if( m_iQLength > 0 ) {
     pNode->ClearMessage();
-	if(pNode == m_pQHead)
-	{
-		m_pQHead = pNode->m_pNext;
-	}
-    // Rearrange node chain
-    pNode->m_pPrev->m_pNext = pNode->m_pNext;
-    pNode->m_pNext->m_pPrev = pNode->m_pPrev;
-    pNode->m_pNext = m_pQTail->m_pNext;
-    pNode->m_pPrev = m_pQTail;
-    m_pQTail->m_pNext->m_pPrev = pNode;
-    m_pQTail->m_pNext = pNode;
-		m_iQLength--;
+  	if(pNode == m_pQHead)
+  	{
+  		m_pQHead = pNode->m_pNext;
+  	}
+	  if(pNode != m_pQTail)
+    {
+  		// Rearrange node chain
+  		pNode->m_pPrev->m_pNext = pNode->m_pNext;
+  		pNode->m_pNext->m_pPrev = pNode->m_pPrev;
+  		pNode->m_pNext = m_pQTail->m_pNext;
+  		pNode->m_pPrev = m_pQTail;
+  		m_pQTail->m_pNext->m_pPrev = pNode;
+  		m_pQTail->m_pNext = pNode;
+    }
+	  m_iQLength--;
+	  lv_retVal = true;
   }
-
 	// Unlock
 	UnlockQueue();
 

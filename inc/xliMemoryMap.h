@@ -30,8 +30,8 @@
 #define MEM_SCHEDULE_LEN          0x0100
 
 // Node ID List (48*16bytes)
-#define MEM_NODELIST_OFFSET       (MEM_SCHEDULE_OFFSET + MEM_SCHEDULE_LEN)
-#define MEM_NODELIST_LEN          0x0300
+//#define MEM_NODELIST_OFFSET       (MEM_SCHEDULE_OFFSET + MEM_SCHEDULE_LEN)
+//#define MEM_NODELIST_LEN          0x0300
 
 //------------------------------------------------------------------
 // P1 external Flash: 1MB, access via SPI flash library
@@ -72,8 +72,18 @@
 #define MEM_CONFIG_BACKUP_OFFSET  (MEM_NODECONFIG_OFFSET + MEM_NODECONFIG_LEN)
 #define MEM_CONFIG_BACKUP_LEN     0x0100
 
-#define MEM_NODELIST_BACKUP_OFFSET  (MEM_CONFIG_BACKUP_OFFSET + MEM_CONFIG_BACKUP_LEN)
-#define MEM_NODELIST_BACKUP_LEN     0x0300
+// airconditioning node info
+#define MEM_ACLIST_OFFSET           (MEM_CONFIG_BACKUP_OFFSET + MEM_NODELIST_BACKUP_LEN)
+#define MEM_ACLIST_LEN              0x0800
+
+#define MEM_ACLIST_BACKUP_OFFSET    (MEM_ACLIST_OFFSET + MEM_ACLIST_LEN)
+#define MEM_ACLIST_BACKUP_LEN       0x0800
+
+#define MEM_NODELIST_OFFSET         (MEM_ACLIST_BACKUP_OFFSET + MEM_ACLIST_BACKUP_LEN)
+#define MEM_NODELIST_LEN            0x0800
+
+#define MEM_NODELIST_BACKUP_OFFSET  (MEM_NODELIST_OFFSET + MEM_NODELIST_LEN)
+#define MEM_NODELIST_BACKUP_LEN     0x0800
 
 //-------------------------------
 

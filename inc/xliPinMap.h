@@ -55,7 +55,7 @@
 #endif
 
 // Digital only GPIO pins (D0 - D7, D0-D4 may also be PWM)
-#define PIN_KNOB_B_PHASE          D2          // Knob: B_PHASE
+#define PIN_KNOB_B_PHASE          D1          // Knob: B_PHASE
 #define PIN_KNOB_A_PHASE          D3          // Knob: A_PHASE
 #define PIN_KNOB_BUTTON           D4          // Knob: button
 
@@ -69,7 +69,7 @@
 //#define PIN_SEN_PIR               D7          // Sensor: infra red motion, may also be PWM
 
 // BUSINESS_EDITION
-#define PIN_SOFT_KEY_1            D1          // Relay control key 1
+#define PIN_SOFT_KEY_1            D2          // Relay control key 1
 #define PIN_SOFT_KEY_2            A7          // Relay control key 2
 #define PIN_SOFT_KEY_3            A6          // Relay control key 3
 
